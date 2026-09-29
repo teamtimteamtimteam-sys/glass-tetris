@@ -88,7 +88,11 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .btn svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .btn.wide{grid-column:span 2;height:50px}
 .btn.big svg{width:32px;height:32px}
+.btn.wide.big{height:66px}
 .btn.on{transform:scale(.93);background:linear-gradient(145deg,rgba(255,255,255,.34),rgba(255,255,255,.14))}
+.swap-in{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;letter-spacing:1px;pointer-events:none}
+.swap-in svg{width:22px;height:22px}
+.btn.used{opacity:.35}
 
 /* ---------- 特效层 ---------- */
 #fx{position:fixed;inset:0;z-index:4;pointer-events:none}
@@ -191,13 +195,12 @@ h2{font-size:26px;font-weight:800;letter-spacing:2px}
   <div id="controls">
     <div class="pad">
       <button class="btn glass wide" data-act="soft" aria-label="加速下落"><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></button>
-      <button class="btn glass big" data-act="left" aria-label="左移"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <button class="btn glass big" data-act="right" aria-label="右移"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="btn glass wide big" data-act="cw" aria-label="旋转"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3v5h-5"/></svg></button>
     </div>
     <div class="pad">
-      <button class="btn glass wide" data-act="hard" aria-label="直接落下"><svg viewBox="0 0 24 24"><path d="M6 5l6 6 6-6"/><path d="M6 11l6 6 6-6"/><path d="M5 21h14"/></svg></button>
-      <button class="btn glass big" data-act="ccw" aria-label="逆时针旋转"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 3v5h5"/></svg></button>
-      <button class="btn glass big" data-act="cw" aria-label="顺时针旋转"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3v5h-5"/></svg></button>
+      <button class="btn glass wide" data-act="swap" id="swapBtn" aria-label="换成下一块"><span class="swap-in"><svg viewBox="0 0 24 24"><path d="M4 8h14"/><path d="M15 4l4 4-4 4"/><path d="M20 16H6"/><path d="M9 12l-4 4 4 4"/></svg><span>换 NEXT</span></span></button>
+      <button class="btn glass big" data-act="left" aria-label="左移"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="btn glass big" data-act="right" aria-label="右移"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
   </div>
 </div>
@@ -217,7 +220,7 @@ h2{font-size:26px;font-weight:800;letter-spacing:2px}
     </div>
     <button class="primary" id="startBtn">开始游戏</button>
     <div class="lb"><h3>排行榜 · TOP 5</h3><ol id="lbMenu"></ol></div>
-    <div class="hint">点棋盘旋转 · 左右拖动移动 · 按住下拖加速 · 快速下划直落<br>每消 10 行升一级，共 18 级</div>
+    <div class="hint">点棋盘旋转 · 左右拖动移动 · 按住下拖加速 · 快速下划直落<br>「换 NEXT」把正在下落的方块换成下一块，每块限一次<br>每消 10 行升一级，共 18 级</div>
   </div>
 </div>
 
@@ -460,8 +463,28 @@ function spawn(){
   const t = nextType; nextType = pull();
   cur = { t, r: 0, x: t === 'O' ? 4 : 3, y: 1 };
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y;
+  setSwapUsed(false);
   drawNext();
   if (collide(cur.t, cur.r, cur.x, cur.y)) { cur.y -= 1; if (collide(cur.t, cur.r, cur.x, cur.y)) { gameOver(); return; } }
+}
+// 把正在下落的方块原地换成 NEXT 那块（原来那块变成新的 NEXT）；每块只能换一次，避免来回换拖时间
+let swapUsed = false;
+const swapBtn = document.getElementById('swapBtn');
+function setSwapUsed(v){ swapUsed = v; swapBtn.classList.toggle('used', v); }
+function swapPiece(){
+  if (swapUsed || !cur) return false;
+  const nt = nextType;
+  for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0], [0, -2]]) {
+    const x = cur.x + dx, y = cur.y + dy;
+    if (collide(nt, 0, x, y)) continue;
+    nextType = cur.t;
+    cur = { t: nt, r: 0, x, y };
+    lockTimer = 0; lowestY = Math.max(lowestY, y);
+    setSwapUsed(true); drawNext(); fxSwap(); Sound.rotate();
+    return true;
+  }
+  shake(3, 120); // 换不下（周围太挤）
+  return false;
 }
 function afterShift(){
   if (!canMove(0, 1) || lockTimer > 0) {
@@ -818,6 +841,17 @@ function fxClear(rows, n){
   if (n >= 2) banner(['', '', 'DOUBLE', 'TRIPLE!', '慧玲你真棒！'][n], 'bn' + n, ['', '', '双消', '三消', '四消 · 满堂彩'][n], n === 4 ? 1.5 : 1.0, cy);
   else banner('', '', '', 0, cy);
 }
+function fxSwap(){
+  const r = boardRect(), cs = cells(cur.t, cur.r);
+  let sx = 0, sy = 0; for (const [cx, cy] of cs) { sx += cur.x + cx; sy += cur.y + cy; }
+  const [px, py] = cellCenter(r, sx / cs.length, sy / cs.length);
+  addP({ type: 'ring', x: px, y: py, r0: CELL * .5, r1: CELL * 2.6, size: 4, max: 380, color: '200,230,255' });
+  for (const [cx, cy] of cs) {
+    const [qx, qy] = cellCenter(r, cur.x + cx, cur.y + cy);
+    for (let i = 0; i < 3; i++) addP({ x: qx, y: qy, vx: rand(-80, 80), vy: rand(-80, 80), drag: .05, max: rand(250, 400), size: rand(1.2, 2.2), color: COLORS[cur.t] });
+  }
+  lockFlash = { cells: cs.map(([cx, cy]) => [cur.x + cx, cur.y + cy]), t: 0 };
+}
 function fxLevelUp(){
   const r = boardRect();
   Sound.level();
@@ -965,6 +999,7 @@ function act(a){
     }
     case 'soft': input.soft = true; dropAcc = softMs(); break;
     case 'hard': hardDrop(); break;
+    case 'swap': swapPiece(); break;
     case 'cw': rotate(1); break;
     case 'ccw': rotate(-1); break;
   }
@@ -979,7 +1014,7 @@ function release(a){
   if (a === 'soft') input.soft = false;
 }
 // 每根手指当前按着哪个键；左手那组（← → ↓）按住后可滑到相邻键直接切换
-const SLIDE = new Set(['left', 'right', 'soft']);
+const SLIDE = new Set(['left', 'right']);
 const touches = new Map();
 function pressBtn(id, b){ touches.set(id, b); b.classList.add('on'); act(b.dataset.act); }
 function releaseBtn(id){ const b = touches.get(id); if (!b) return; touches.delete(id); b.classList.remove('on'); release(b.dataset.act); }
@@ -1038,7 +1073,7 @@ cv.addEventListener('pointerup', endGesture);
 cv.addEventListener('pointercancel', e => { if (gest && e.pointerId === gest.id) { if (gest.soft) input.soft = false; gest = null; } });
 
 // 键盘（桌面调试）
-const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'cw', KeyX: 'cw', KeyZ: 'ccw', Space: 'hard' };
+const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'cw', KeyX: 'cw', KeyC: 'swap', Space: 'hard' };
 addEventListener('keydown', e => {
   if (e.code === 'KeyP' || e.code === 'Escape') { state === 'pause' ? resumeGame() : pauseGame(); return; }
   if (e.code === 'Enter' && (state === 'menu' || state === 'over')) { startGame(); return; }
