@@ -25,7 +25,7 @@ html,body{height:100%;overflow:hidden;background:#0b0820;color:#fff;
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 
 /* ---------- 流动背景 ---------- */
-#bg{position:fixed;inset:0;overflow:hidden;z-index:0;
+#bg{position:fixed;left:0;right:0;top:0;height:var(--app-h,100%);overflow:hidden;z-index:0;
   background:radial-gradient(130% 90% at 50% 0%,#2b1a63 0%,#120c35 45%,#07051a 100%)}
 .blob{position:absolute;width:80vmax;height:80vmax;border-radius:50%;will-change:transform}
 .b1{background:radial-gradient(circle,rgba(255,60,172,.55) 0%,rgba(255,60,172,0) 62%);left:-35vmax;top:-30vmax;animation:d1 19s ease-in-out infinite alternate}
@@ -50,7 +50,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 }
 
 /* ---------- 布局 ---------- */
-#app{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;gap:10px;
+#app{position:fixed;left:0;right:0;top:0;height:var(--app-h,100%);z-index:1;display:flex;flex-direction:column;gap:10px;
   padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 10px);will-change:transform}
 #top{display:flex;align-items:center;gap:10px;flex:none}
 .icon-btn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;flex:none;transition:transform .12s}
@@ -82,11 +82,12 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #lvbar{height:4px;border-radius:2px;background:rgba(255,255,255,.14);margin:6px 4px 0;overflow:hidden}
 #lvfill{height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#35e0ff,#b36bff,#ff4f9a);transition:width .3s}
 
-#controls{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+#controls{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .pad{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn{height:56px;border-radius:20px;display:grid;place-items:center;transition:transform .08s,background-color .08s;touch-action:none}
+.btn{height:66px;border-radius:20px;display:grid;place-items:center;transition:transform .08s,background-color .08s;touch-action:none}
 .btn svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.btn.wide{grid-column:span 2;height:48px}
+.btn.wide{grid-column:span 2;height:50px}
+.btn.big svg{width:32px;height:32px}
 .btn.on{transform:scale(.93);background:linear-gradient(145deg,rgba(255,255,255,.34),rgba(255,255,255,.14))}
 
 /* ---------- 特效层 ---------- */
@@ -189,14 +190,14 @@ h2{font-size:26px;font-weight:800;letter-spacing:2px}
 
   <div id="controls">
     <div class="pad">
-      <button class="btn glass" data-act="left" aria-label="左移"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <button class="btn glass" data-act="right" aria-label="右移"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       <button class="btn glass wide" data-act="soft" aria-label="加速下落"><svg viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></svg></button>
+      <button class="btn glass big" data-act="left" aria-label="左移"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="btn glass big" data-act="right" aria-label="右移"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
     <div class="pad">
-      <button class="btn glass" data-act="ccw" aria-label="逆时针旋转"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 3v5h5"/></svg></button>
-      <button class="btn glass" data-act="cw" aria-label="顺时针旋转"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3v5h-5"/></svg></button>
       <button class="btn glass wide" data-act="hard" aria-label="直接落下"><svg viewBox="0 0 24 24"><path d="M6 5l6 6 6-6"/><path d="M6 11l6 6 6-6"/><path d="M5 21h14"/></svg></button>
+      <button class="btn glass big" data-act="ccw" aria-label="逆时针旋转"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 3v5h5"/></svg></button>
+      <button class="btn glass big" data-act="cw" aria-label="顺时针旋转"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3v5h-5"/></svg></button>
     </div>
   </div>
 </div>
@@ -216,7 +217,7 @@ h2{font-size:26px;font-weight:800;letter-spacing:2px}
     </div>
     <button class="primary" id="startBtn">开始游戏</button>
     <div class="lb"><h3>排行榜 · TOP 5</h3><ol id="lbMenu"></ol></div>
-    <div class="hint">点棋盘旋转 · 左右拖动移动 · 下拖加速 · 快速下划直落<br>每消 10 行升一级，共 18 级</div>
+    <div class="hint">点棋盘旋转 · 左右拖动移动 · 按住下拖加速 · 快速下划直落<br>每消 10 行升一级，共 18 级</div>
   </div>
 </div>
 
@@ -251,7 +252,9 @@ const COLS = 10, ROWS = 20, HID = 2, TROWS = ROWS + HID;
 const MAX_LEVEL = 18;
 // 每级下落一格所需毫秒：级别越高越快，18 级封顶
 const SPEED = [0, 800, 716, 633, 550, 466, 383, 300, 216, 166, 133, 116, 100, 90, 80, 70, 60, 52, 45];
-const LOCK_DELAY = 500, MAX_RESETS = 15, DAS = 160, ARR = 45, SOFT_MS = 30;
+const LOCK_DELAY = 500, MAX_RESETS = 15, DAS = 160, ARR = 45;
+// 加速下落每格毫秒：约为当前重力的 1/10，但不快于 50ms/格，也不慢于重力本身
+const softMs = () => Math.min(SPEED[level], Math.max(50, SPEED[level] / 10));
 const LINE_SCORE = [0, 40, 100, 300, 1200]; // 经典计分 × 级别
 const CLEAR_MS = [0, 300, 380, 500, 720];
 
@@ -591,7 +594,7 @@ function update(dt){
       }
     }
     // 重力
-    const iv = input.soft ? Math.min(SPEED[level], SOFT_MS) : SPEED[level];
+    const iv = input.soft ? softMs() : SPEED[level];
     if (canMove(0, 1)) {
       lockTimer = 0;
       dropAcc += dt;
@@ -925,8 +928,16 @@ function drawFx(){
 }
 
 /* ================= 布局 ================= */
+function appHeight(){
+  let h = window.innerHeight;
+  // iOS 主屏（standalone）模式下 innerHeight / fixed 元素可能比屏幕短一截，底部露出黑条
+  if (navigator.standalone && innerWidth < innerHeight && screen.height > h && screen.width === innerWidth) h = screen.height;
+  return h;
+}
 function layout(){
-  fxW = innerWidth; fxH = innerHeight;
+  const ah = appHeight();
+  document.documentElement.style.setProperty('--app-h', ah + 'px');
+  fxW = innerWidth; fxH = ah;
   fxv.width = fxW * DPR; fxv.height = fxH * DPR; fxv.style.width = fxW + 'px'; fxv.style.height = fxH + 'px';
   fxWasActive = true;
   const m = mainEl.getBoundingClientRect();
@@ -952,7 +963,7 @@ function act(a){
       if (move(d, 0)) Sound.move();
       break;
     }
-    case 'soft': input.soft = true; dropAcc = SPEED[level]; break;
+    case 'soft': input.soft = true; dropAcc = softMs(); break;
     case 'hard': hardDrop(); break;
     case 'cw': rotate(1); break;
     case 'ccw': rotate(-1); break;
@@ -967,10 +978,21 @@ function release(a){
   }
   if (a === 'soft') input.soft = false;
 }
+// 每根手指当前按着哪个键；左手那组（← → ↓）按住后可滑到相邻键直接切换
+const SLIDE = new Set(['left', 'right', 'soft']);
+const touches = new Map();
+function pressBtn(id, b){ touches.set(id, b); b.classList.add('on'); act(b.dataset.act); }
+function releaseBtn(id){ const b = touches.get(id); if (!b) return; touches.delete(id); b.classList.remove('on'); release(b.dataset.act); }
 document.querySelectorAll('.btn').forEach(b => {
-  const a = b.dataset.act;
-  b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.init(); try { b.setPointerCapture(e.pointerId); } catch (_) {} b.classList.add('on'); act(a); });
-  const up = e => { b.classList.remove('on'); release(a); };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.init(); try { b.setPointerCapture(e.pointerId); } catch (_) {} releaseBtn(e.pointerId); pressBtn(e.pointerId, b); });
+  b.addEventListener('pointermove', e => {
+    const curB = touches.get(e.pointerId);
+    if (!curB || !SLIDE.has(curB.dataset.act)) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const nb = el && el.closest && el.closest('.btn');
+    if (nb && nb !== curB && SLIDE.has(nb.dataset.act)) { releaseBtn(e.pointerId); pressBtn(e.pointerId, nb); }
+  });
+  const up = e => releaseBtn(e.pointerId);
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
   b.addEventListener('contextmenu', e => e.preventDefault());
 });
@@ -991,29 +1013,29 @@ cv.addEventListener('pointermove', e => {
     if (move(d, 0)) Sound.move();
     gest.lx += d * step; dx -= d * step; gest.moved = true; gest.hx++;
   }
-  let dy = e.clientY - gest.ly;
-  while (dy >= CELL) {
-    if (move(0, 1)) score += 1;
-    gest.ly += CELL; dy -= CELL; gest.moved = true;
-  }
-  if (e.clientY < gest.ly - CELL) gest.ly = e.clientY; // 往上拖不累计
+  // 往下拖过 0.8 格进入加速下落（与 ↓ 键同速），手指往回拉或松开即停
+  const dy = e.clientY - gest.ly;
+  if (!gest.soft && dy > CELL * .8) { gest.soft = true; gest.moved = true; input.soft = true; }
+  else if (gest.soft && dy < CELL * .4) { gest.soft = false; input.soft = false; }
+  if (e.clientY < gest.ly) gest.ly = e.clientY; // 以拖动中的最高点为基准
   const now = performance.now(); gest.hist.push([e.clientY, now]);
   while (gest.hist.length > 2 && now - gest.hist[0][1] > 90) gest.hist.shift();
 });
 function endGesture(e){
   if (!gest || e.pointerId !== gest.id) return;
   const g = gest; gest = null;
+  if (g.soft) input.soft = false;
   if (state !== 'play' || !cur) return;
   const dt = performance.now() - g.t0, dx = e.clientX - g.x0, dy = e.clientY - g.y0;
   const [hy, ht] = g.hist[0], v = (e.clientY - hy) / Math.max(1, performance.now() - ht);
-  if (dy > CELL * 1.5 && v > .9 && Math.abs(dx) < CELL * 1.5) { hardDrop(); return; }
+  if (dy > CELL * 2 && v > 1.1 && dt < 400 && Math.abs(dx) < CELL * 1.5) { hardDrop(); return; }
   if (!g.moved && dt < 300 && Math.abs(dx) < 12 && Math.abs(dy) < 12) {
     // 点左半边逆转、右半边顺转更直观？保持经典：点击统一顺时针
     rotate(1);
   }
 }
 cv.addEventListener('pointerup', endGesture);
-cv.addEventListener('pointercancel', e => { if (gest && e.pointerId === gest.id) gest = null; });
+cv.addEventListener('pointercancel', e => { if (gest && e.pointerId === gest.id) { if (gest.soft) input.soft = false; gest = null; } });
 
 // 键盘（桌面调试）
 const KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'cw', KeyX: 'cw', KeyZ: 'ccw', Space: 'hard' };
@@ -1049,7 +1071,12 @@ function drawSoundIcon(){
 }
 $('#soundBtn').onclick = () => { Sound.on = !Sound.on; Sound.init(); try { localStorage.setItem('glassTetris.sound', Sound.on ? '1' : '0'); } catch (e) {} drawSoundIcon(); };
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
-addEventListener('resize', () => { layout(); });
+addEventListener('resize', () => layout());
+addEventListener('orientationchange', () => setTimeout(layout, 300));
+addEventListener('pageshow', () => layout());
+if (window.visualViewport) visualViewport.addEventListener('resize', () => layout());
+if (window.ResizeObserver) new ResizeObserver(() => layout()).observe(mainEl);
+[100, 400, 1000].forEach(t => setTimeout(layout, t));
 
 /* ================= 主循环 ================= */
 let last = performance.now(), hudTick = 0;
