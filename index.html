@@ -104,7 +104,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .bn2{font-size:30px;color:#bfe9ff;text-shadow:0 0 14px rgba(80,180,255,.9)}
 .bn3{font-size:38px;background:linear-gradient(90deg,#ffe36b,#ff7ac6);-webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(0 0 12px rgba(255,140,200,.8))}
-.bn4{font-size:52px;background:linear-gradient(90deg,#ff4f6d,#ffd23f,#45ec8c,#35e0ff,#b36bff,#ff4f6d);background-size:200% 100%;
+.bn4{font-size:40px;background:linear-gradient(90deg,#ff4f6d,#ffd23f,#45ec8c,#35e0ff,#b36bff,#ff4f6d);background-size:200% 100%;
   -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px rgba(255,255,255,.85));
   animation:pop var(--dur,.9s) cubic-bezier(.2,1.4,.3,1) forwards,slide .6s linear infinite}
 @keyframes slide{to{background-position:200% 0}}
@@ -812,7 +812,7 @@ function fxClear(rows, n){
   }, delay);
 
   // 文字
-  if (n >= 2) banner(['', '', 'DOUBLE', 'TRIPLE!', 'TETRIS!'][n], 'bn' + n, ['', '', '双消', '三消', '四消 · 满堂彩'][n], n === 4 ? 1.5 : 1.0, cy);
+  if (n >= 2) banner(['', '', 'DOUBLE', 'TRIPLE!', '慧玲你真棒！'][n], 'bn' + n, ['', '', '双消', '三消', '四消 · 满堂彩'][n], n === 4 ? 1.5 : 1.0, cy);
   else banner('', '', '', 0, cy);
 }
 function fxLevelUp(){
