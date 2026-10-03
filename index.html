@@ -276,6 +276,8 @@ const COLS = 10, ROWS = 20, HID = 2, TROWS = ROWS + HID, MAX_LEVEL = 18;
 // 各级自然下落一格的毫秒数：前期宽松，10 级后陡升，18 级封顶
 const SPEED = [0, 900, 800, 710, 625, 550, 470, 400, 340, 290, 250, 205, 170, 140, 120, 95, 70, 45, 30];
 const LOCK_DELAY = 300, MAX_RESETS = 10;
+const LINES_PER_LEVEL = 50; // 每升一级要消的行数（原来是 10，放慢到 5 倍）
+const spawnRot = t => t === 'I' ? 1 : 0; // 长条出场时竖着
 const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
@@ -541,9 +543,10 @@ function collide(t, r, x, y){
 }
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
-  cur = { t, r: 0, x: t === 'O' || isSpecial(t) ? 4 : 3, y: 1 };
+  const r = spawnRot(t);
+  cur = { t, r, x: t === 'O' || isSpecial(t) ? 4 : 3, y: t === 'I' ? 0 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
-  if (collide(t, 0, cur.x, cur.y)) { cur.y = 0; if (collide(t, 0, cur.x, cur.y)) { topOut(); return false; } }
+  if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
 }
 function spawn(){
@@ -632,7 +635,7 @@ function lock(){
     score += pts;
     const oldLv = level;
     lines += n;
-    if (mode !== 'survival') level = Math.min(MAX_LEVEL, Math.floor(lines / 10) + 1);
+    if (mode !== 'survival') level = Math.min(MAX_LEVEL, Math.floor(lines / LINES_PER_LEVEL) + 1);
     fxClear(snap, n, b2bNow ? b2b - 1 : 0, combo, pc);
     Sfx.clear(n, combo);
     if (pc) setTimeout(() => Sfx.pc(), 120);
@@ -804,7 +807,8 @@ function render(){
   drawFx();
 }
 function drawPiece(g, t, ox, oy, s, alpha = 1){
-  const cs = SHAPES[t][0]; let a = 9, b = -1, c = 9, d = -1;
+  if (t === 'I') s = Math.min(s, Math.round(7 * DPR)); // 竖长条 4 格高，缩一点才放得进预览格
+  const cs = SHAPES[t][spawnRot(t)]; let a = 9, b = -1, c = 9, d = -1;
   for (const [x, y] of cs) { a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y); }
   const w = (b - a + 1) * s, h = (d - c + 1) * s;
   g.globalAlpha = alpha;
