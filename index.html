@@ -279,7 +279,8 @@ const LOCK_DELAY = 300, MAX_RESETS = 10;
 const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
-const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff' };
+const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
+  D:'#eef2ff', D2:'#63dcff', B:'#e2452e', B2:'#ffd23f' }; // D = 闪烁小点，B = 闪烁炸弹；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -297,6 +298,12 @@ for (const t of TYPES) {
 }
 const KJ = { '01':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '12':[[0,0],[1,0],[1,-1],[0,2],[1,2]], '23':[[0,0],[1,0],[1,1],[0,-2],[1,-2]], '30':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]] };
 const KI = { '01':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '12':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]], '23':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]], '30':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]] };
+
+// 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），B 2×2 炸弹（落地炸掉周围一圈）
+SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
+SHAPES.B = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
+const isSpecial = t => t === 'D' || t === 'B';
+const DOT_RATE = .28, BOMB_RATE = .18; // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -334,15 +341,23 @@ function fmtDate(t){ const d = new Date(t); return `${d.getMonth() + 1}/${d.getD
 
 /* ================= 像素方块贴图 ================= */
 let CELL = 0, CD = 0, blockCache = {}, ghostCache = {}, smallCache = {};
-function makeBlock(color, D){
+function makeBlock(color, D, mark){
   const c = document.createElement('canvas'); c.width = c.height = D;
   const g = c.getContext('2d'), u = Math.max(1, Math.round(D / 10));
+  if (mark === 'D') { // 小点：深色底上一颗发亮的芯，和普通方块一眼能分开
+    g.fillStyle = '#10142a'; g.fillRect(0, 0, D, D);
+    g.fillStyle = shade(color, -.35); g.fillRect(u, u, D - 2 * u, D - 2 * u);
+    g.fillStyle = color; g.fillRect(2 * u, 2 * u, D - 4 * u, D - 4 * u);
+    g.fillStyle = '#fff'; g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u);
+    return c;
+  }
   g.fillStyle = shade(color, -.55); g.fillRect(0, 0, D, D);                       // 外轮廓
   g.fillStyle = color; g.fillRect(u, u, D - 2 * u, D - 2 * u);                     // 主体
   g.fillStyle = shade(color, .32); g.fillRect(u, u, D - 2 * u, u); g.fillRect(u, u, u, D - 2 * u);         // 左上亮边
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (mark === 'B') { g.fillStyle = '#1a0d0a'; g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, u, u); } // 炸弹：黑芯 + 一点火星
   return c;
 }
 function makeGhost(color, D, alpha){
@@ -357,13 +372,13 @@ function makeGhost(color, D, alpha){
 function buildCaches(){
   blockCache = {}; ghostCache = { normal: {}, dim: {} }; smallCache = {};
   for (const t in COLORS) {
-    blockCache[t] = makeBlock(COLORS[t], CD);
+    blockCache[t] = makeBlock(COLORS[t], CD, isSpecial(t[0]) ? t[0] : null);
     ghostCache.normal[t] = makeGhost(COLORS[t], CD, .85);
     ghostCache.dim[t] = makeGhost(COLORS[t], CD, .35);
   }
   gridCache = null;
 }
-function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D)); }
+function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D, isSpecial(t) ? t : null)); }
 
 /* ================= 声音 ================= */
 const Au = {
@@ -403,6 +418,8 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
+  bomb(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(140, .35, 'triangle', .5, now, .25); Au.noise(.32, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); [0, .05, .11].forEach(d => Au.tone(900 - d * 4000, .04, 'square', .05, now + .06 + d)); },
+  sink(){ if (this.ok()) Au.tone(1500, .16, 'square', .05, 0, .25); },
   hard(){ if (this.ok()) { Au.tone(110, .09, 'triangle', .35, 0, .45); Au.noise(.05, .12, 0, 'lowpass', 900); } },
   clear(n, combo){
     if (!this.ok()) return;
@@ -508,6 +525,9 @@ function fillQueue(){
   while (queue.length < 7) {
     const bag = TYPES.split('');
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
+    const sp = rng(), at = Math.floor(rng() * 8);
+    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B');
     queue.push(...bag);
   }
 }
@@ -521,7 +541,7 @@ function collide(t, r, x, y){
 }
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
-  cur = { t, r: 0, x: t === 'O' ? 4 : 3, y: 1 };
+  cur = { t, r: 0, x: t === 'O' || isSpecial(t) ? 4 : 3, y: 1 };
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, 0, cur.x, cur.y)) { cur.y = 0; if (collide(t, 0, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -548,7 +568,7 @@ function stepDown(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O') return false;
+  if (!cur || cur.t === 'O' || isSpecial(cur.t)) return false;
   const from = cur.r, to = (from + 1) % 4, kicks = (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
@@ -568,6 +588,20 @@ function doHold(){
   return true;
 }
 function ghostY(){ let y = cur.y; while (!collide(cur.t, cur.r, cur.x, y + 1)) y++; return y; }
+// 小点最终落到哪：这一列里最靠下的空格（可以在别的方块下面）
+function dotTargetY(){ for (let y = TROWS - 1; y > cur.y; y--) if (!board[y][cur.x]) return y; return cur.y; }
+function explodeBomb(){
+  const bx = cur.x, by = cur.y, hit = [];
+  for (let y = by - 1; y <= by + 2; y++) for (let x = bx - 1; x <= bx + 2; x++) {
+    if (x < 0 || x >= COLS || y < 0 || y >= TROWS || !board[y][x]) continue;
+    hit.push([x, y, board[y][x]]); board[y][x] = null;
+  }
+  score += hit.length * 10 * level;
+  fxBomb(bx, by, hit); Sfx.bomb(); Hap.fire(2);
+  cur = null;
+  if (by + 1 < HID) { topOut(); return; }
+  spawn();
+}
 function hardDrop(){
   if (!cur) return;
   const y0 = cur.y, y1 = ghostY();
@@ -576,6 +610,8 @@ function hardDrop(){
   lock();
 }
 function lock(){
+  if (cur.t === 'B') { explodeBomb(); return; }
+  if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
   for (const [x, y] of cs) { if (y >= 0) board[y][x] = cur.t; if (y >= HID) above = false; }
@@ -756,11 +792,12 @@ function render(){
     }
     if (cur && (state === 'play' || state === 'countdown' || state === 'pause')) {
       const cs = SHAPES[cur.t][cur.r], gm = ghostMode();
-      if (gm !== 'off') { const gy = ghostY(); if (gy !== cur.y) for (const [cx, cy] of cs) blit(ghostCache[gm][cur.t], cur.x + cx, gy + cy); }
+      if (gm !== 'off') { const gy = cur.t === 'D' ? dotTargetY() : ghostY(); if (gy !== cur.y) for (const [cx, cy] of cs) blit(ghostCache[gm][cur.t], cur.x + cx, gy + cy); }
       // 落地后锁定前：方块轻微变暗闪一下提示
       const k = !canMove(0, 1) ? Math.floor(lockTimer / 60) % 2 : 0;
       ctx.globalAlpha = k ? .72 : 1;
-      for (const [cx, cy] of cs) blit(blockCache[cur.t], cur.x + cx, cur.y + cy);
+      const skin = isSpecial(cur.t) && Math.floor(performance.now() / 110) % 2 ? cur.t + '2' : cur.t; // 特殊方块闪烁
+      for (const [cx, cy] of cs) blit(blockCache[skin], cur.x + cx, cur.y + cy);
       ctx.globalAlpha = 1;
     }
   }
@@ -825,6 +862,38 @@ function fxHardDrop(y0, y1){
     for (let i = 0; i < 3; i++) addP({ x: bx + rand(-c / 2, c / 2), y: by - u, vx: rand(-110, 110), vy: rand(-140, -40), g: 700, max: rand(140, 240), s: u, c: i ? '#c9cde0' : color });
   }
   wrapEl.classList.add('bump'); setTimeout(() => wrapEl.classList.remove('bump'), 60);
+}
+function fxDotSink(x, y0, y1){
+  const r = bRect(), c = CELL, u = px(c), left = r.left + x * c + c / 2 - u;
+  Sfx.sink();
+  anim(200, (k, g) => { // 一道往下钻的虚线
+    g.globalAlpha = 1 - k; g.fillStyle = '#63dcff';
+    for (let yy = Math.max(HID, y0); yy <= y1; yy++) if ((yy + Math.floor(k * 6)) % 2 === 0) g.fillRect(left, r.top + (yy - HID) * c, 2 * u, c);
+    g.globalAlpha = 1;
+  });
+  const ex = r.left + (x + .5) * c, ey = r.top + (y1 - HID + .5) * c;
+  for (let i = 0; i < 10; i++) addP({ x: ex, y: ey, vx: rand(-130, 130), vy: rand(-130, 130), max: rand(160, 280), s: u, c: i % 2 ? '#63dcff' : '#fff', delay: 60 });
+}
+function fxBomb(bx, by, hit){
+  const r = bRect(), c = CELL, u = px(c);
+  const cx = r.left + (bx + 1) * c, cy = r.top + (by + 1 - HID) * c;
+  anim(260, (k, g) => {
+    // 4×4 范围白闪 → 橙 → 消失
+    if (k < .5) { g.globalAlpha = 1 - k * 2; g.fillStyle = k < .2 ? '#fff' : '#ffb347'; g.fillRect(cx - 2 * c, cy - 2 * c, 4 * c, 4 * c); g.globalAlpha = 1; }
+    // 方形像素冲击波
+    const rad = Math.round((c + k * 3.2 * c) / u) * u, th = Math.max(u, Math.round((1 - k) * 3) * u);
+    g.globalAlpha = 1 - k; g.fillStyle = '#ffd23f';
+    for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
+    g.globalAlpha = 1;
+  });
+  const fire = ['#fff', '#ffd23f', '#ff8a3c', '#e2452e'];
+  for (let i = 0; i < 46; i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 520); addP({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, g: 500, max: rand(220, 460), s: u * (i % 4 === 0 ? 2 : 1), c: fire[i % 4] }); }
+  for (const [x, y, t] of hit) for (let i = 0; i < 4; i++) { // 被炸掉的方块碎成自己颜色的像素
+    const px0 = r.left + (x + .5) * c, py0 = r.top + (y - HID + .5) * c, a = Math.atan2(py0 - cy, px0 - cx) + rand(-.5, .5), sp = rand(160, 420);
+    addP({ x: px0, y: py0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, g: 800, max: rand(300, 520), s: u * (i === 0 ? 2 : 1), c: COLORS[t] || '#fff', delay: 30 });
+  }
+  shake(6, 220);
+  if (hit.length) banner('#banner', [['BOOM!', 't-clear'], ['-' + hit.length + ' BLOCKS', 't-combo']], .45);
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
