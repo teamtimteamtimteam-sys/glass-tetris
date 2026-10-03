@@ -282,7 +282,7 @@ const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
-  D:'#eef2ff', D2:'#63dcff', B:'#e2452e', B2:'#ffd23f' }; // D = 闪烁小点，B = 闪烁炸弹；带 2 的是闪烁的第二帧
+  D:'#eef2ff', D2:'#63dcff', B:'#e2452e', B2:'#ffd23f', M:'#f2c14e', M2:'#ff7ad9' }; // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -304,8 +304,10 @@ const KI = { '01':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '12':[[0,0],[-1,0],[2,0],[
 // 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），B 2×2 炸弹（落地炸掉周围一圈）
 SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
 SHAPES.B = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
-const isSpecial = t => t === 'D' || t === 'B';
-const DOT_RATE = .28, BOMB_RATE = .18; // 每一袋 7 块里额外混进一块的概率
+// M 两格短条：能横竖转；落下时只要消了行（1 或 2 行）就清空整个棋盘，按四消计分
+SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
+const isSpecial = t => t === 'D' || t === 'B' || t === 'M';
+const DOT_RATE = .26, BOMB_RATE = .17, MINI_RATE = .17; // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -359,6 +361,7 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (mark === 'M') { g.fillStyle = '#fff'; g.fillRect(4 * u, 3 * u, D - 8 * u, D - 6 * u); g.fillRect(3 * u, 4 * u, D - 6 * u, D - 8 * u); } // 短条：中间一颗白色十字星
   if (mark === 'B') { g.fillStyle = '#1a0d0a'; g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, u, u); } // 炸弹：黑芯 + 一点火星
   return c;
 }
@@ -420,6 +423,16 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
+  superClear(){
+    if (!this.ok()) return;
+    const now = Au.ctx.currentTime, T = (m, dur, type, vol, at) => Au.tone(midi(m), dur, type, vol, now + at);
+    Au.tone(110, .3, 'sawtooth', .09, now, 9);                                   // 上冲扫频
+    [0, .09, .18].forEach(d => Au.tone(2600, .12, 'square', .05, now + d, .15)); // 三声激光
+    [60, 64, 67, 72, 76, 79, 84, 88, 91, 96].forEach((m, i) => T(m, .07, 'square', .07, .05 + i * .03)); // 三个八度的琶音
+    Au.tone(55, .7, 'sine', .6, now + .34, .5); Au.noise(.6, .3, now + .34, 'lowpass', 1300); Au.noise(.25, .12, now + .34, 'highpass', 6000); // 大爆炸
+    [72, 76, 79, 84, 88].forEach(m => { T(m, .7, 'square', .04, .36); T(m, .7, 'sawtooth', .018, .36); });  // 长和弦
+    [96, 100, 103, 108, 103, 108, 112, 115].forEach((m, i) => T(m, .06, 'square', .04, .5 + i * .06));    // 高音闪烁收尾
+  },
   bomb(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(140, .35, 'triangle', .5, now, .25); Au.noise(.32, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); [0, .05, .11].forEach(d => Au.tone(900 - d * 4000, .04, 'square', .05, now + .06 + d)); },
   sink(){ if (this.ok()) Au.tone(1500, .16, 'square', .05, 0, .25); },
   hard(){ if (this.ok()) { Au.tone(110, .09, 'triangle', .35, 0, .45); Au.noise(.05, .12, 0, 'lowpass', 900); } },
@@ -518,6 +531,7 @@ const Hap = {
 let mode = 'play', state = 'menu'; // menu | play | countdown | pause | dying | over
 let board, cur, queue, rng, hold, holdUsed;
 let score, lines, level, combo, b2b, maxCombo, tetrises, playTime, pcs;
+let superClears = 0;
 let dropAcc = 0, lockTimer = 0, lockResets = 0, lowestY = 0, onGround = false;
 let dieT = 0, lastEntryId = null;
 const input = { dir: 0, held: { left: false, right: false }, dasT: 0, arrT: 0, soft: false };
@@ -529,7 +543,7 @@ function fillQueue(){
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
     const sp = rng(), at = Math.floor(rng() * 8);
-    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B');
+    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE) bag.splice(at, 0, 'M');
     queue.push(...bag);
   }
 }
@@ -544,7 +558,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || isSpecial(t) ? 4 : 3, y: t === 'I' ? 0 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截
+  cur = { t, r, x: t === 'O' || isSpecial(t) ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -571,8 +585,9 @@ function stepDown(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || isSpecial(cur.t)) return false;
-  const from = cur.r, to = (from + 1) % 4, kicks = (cur.t === 'I' ? KI : KJ)['' + from + to];
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'B') return false;
+  const from = cur.r, to = (from + 1) % 4;
+  const kicks = cur.t === 'M' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -616,6 +631,7 @@ function lock(){
   if (cur.t === 'B') { explodeBomb(); return; }
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
+  const pieceT = cur.t;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
   for (const [x, y] of cs) { if (y >= 0) board[y][x] = cur.t; if (y >= HID) above = false; }
   fxLockFlash(cs);
@@ -627,17 +643,20 @@ function lock(){
     const snap = full.map(y => ({ y, cells: board[y].slice() }));
     for (const y of full) { board.splice(y, 1); board.unshift(Array(COLS).fill(null)); }
     combo++; maxCombo = Math.max(maxCombo, combo);
-    let pts = LINE_PTS[n] * level, b2bNow = false;
-    if (n === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else b2b = 0;
+    // 短条消了行：把剩下的方块全部清掉，按四消给分（不影响 B2B 连续计数）
+    const sup = pieceT === 'M'; let wiped = null;
+    if (sup) { wiped = []; board.forEach((row, y) => row.forEach((t, x) => { if (t) wiped.push([x, y, t]); })); board = newBoard(); superClears++; }
+    let pts = LINE_PTS[sup ? 4 : n] * level, b2bNow = false;
+    if (n === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else if (!sup) b2b = 0;
     if (combo >= 2) pts += 50 * (combo - 1) * level;
-    const pc = board.every(row => row.every(c => !c));
+    const pc = !sup && board.every(row => row.every(c => !c));
     if (pc) { pts += (n === 4 && b2bNow ? 3200 : PC_PTS[n]) * level; pcs++; }
     score += pts;
     const oldLv = level;
     lines += n;
     if (mode !== 'survival') level = Math.min(MAX_LEVEL, Math.floor(lines / LINES_PER_LEVEL) + 1);
-    fxClear(snap, n, b2bNow ? b2b - 1 : 0, combo, pc);
-    Sfx.clear(n, combo);
+    if (sup) { fxSuper(snap, wiped, combo); Sfx.superClear(); }
+    else { fxClear(snap, n, b2bNow ? b2b - 1 : 0, combo, pc); Sfx.clear(n, combo); }
     if (pc) setTimeout(() => Sfx.pc(), 120);
     if (level > oldLv) levelUp();
   } else {
@@ -838,13 +857,13 @@ function updateHUD(){
 /* ================= 特效（全部不阻塞输入） ================= */
 const P = [], A = [];
 let fxW = 0, fxH = 0, fxDirty = false;
-function addP(o){ if (P.length < 900) P.push(Object.assign({ x: 0, y: 0, vx: 0, vy: 0, g: 0, life: 0, max: 400, s: 4, c: '#fff', delay: 0 }, o)); }
+function addP(o){ if (P.length < 1600) P.push(Object.assign({ x: 0, y: 0, vx: 0, vy: 0, g: 0, life: 0, max: 400, s: 4, c: '#fff', delay: 0 }, o)); }
 function anim(dur, fn, delay = 0){ A.push({ t: -delay, dur, fn }); }
 function bRect(){ return cv.getBoundingClientRect(); }
 const px = c => Math.max(2, Math.round(c / 6)); // 像素粒子单位（CSS px）
 function classPulse(el, cls, ms){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); clearTimeout(el['_' + cls]); el['_' + cls] = setTimeout(() => el.classList.remove(cls), ms); }
-let shakeUntil = 0, shakeMag = 0;
-function shake(mag, ms){ shakeMag = mag; shakeUntil = performance.now() + ms; }
+let shakeUntil = 0, shakeMag = 0, shakeDur = 1;
+function shake(mag, ms){ shakeMag = mag; shakeDur = ms; shakeUntil = performance.now() + ms; }
 
 function fxLockFlash(cs){
   const r = bRect(), c = CELL;
@@ -898,6 +917,53 @@ function fxBomb(bx, by, hit){
   }
   shake(6, 220);
   if (hit.length) banner('#banner', [['BOOM!', 't-clear'], ['-' + hit.length + ' BLOCKS', 't-combo']], .45);
+}
+function fxSuper(snap, wiped, comboN){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c, H = ROWS * c, cx = r.left + W / 2;
+  const rows = snap.filter(q => q.y >= HID).map(q => r.top + (q.y - HID) * c);
+  const cy = rows.length ? rows.reduce((a, b) => a + b, 0) / rows.length + c / 2 : r.top + H / 2;
+  const RB = ['#ff4f6d', '#ff9838', '#ffd23f', '#45ec8c', '#35e0ff', '#506fcb', '#b36bff'];
+  // 1) 消掉的行先闪白
+  anim(120, (k, g) => { g.fillStyle = '#fff'; g.globalAlpha = 1 - k * .5; for (const sy of rows) g.fillRect(r.left, sy, W, c); g.globalAlpha = 1; });
+  // 2) 剩下的方块从消除处向外一圈圈闪白、碎成自己颜色的像素飞走
+  const cells = wiped.filter(([, y]) => y >= HID).map(([x, y, t]) => { const X = r.left + x * c, Y = r.top + (y - HID) * c; return { X, Y, t, d: 90 + Math.hypot(X + c / 2 - cx, Y + c / 2 - cy) * .9 }; });
+  anim(560, (k, g) => {
+    const t = k * 560;
+    for (const q of cells) {
+      if (t < q.d) g.drawImage(blockCache[q.t], q.X, q.Y, c, c);                // 还没轮到：原样留着
+      else if (t < q.d + 80) { g.fillStyle = '#fff'; g.fillRect(q.X, q.Y, c, c); } // 轮到了：闪白
+    }
+  });
+  for (const q of cells) for (let i = 0; i < 4; i++) {
+    const a = Math.atan2(q.Y - cy, q.X - cx) + rand(-.7, .7), sp = rand(160, 520);
+    addP({ x: q.X + c / 2, y: q.Y + c / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 140, g: 700, max: rand(380, 700), s: u * (i === 0 ? 2 : 1), c: COLORS[q.t] || '#fff', delay: q.d + 60 });
+  }
+  // 3) 全屏频闪
+  anim(380, (k, g) => { if (Math.floor(k * 8) % 2 === 0) { g.fillStyle = `rgba(255,255,255,${.55 * (1 - k)})`; g.fillRect(0, 0, fxW, fxH); } }, 60);
+  // 4) 彩虹像素条在棋盘里向上滚
+  anim(700, (k, g) => {
+    g.globalAlpha = .4 * (1 - k); const off = Math.floor(k * 28);
+    for (let yy = 0; yy < ROWS; yy++) { g.fillStyle = RB[(yy + off) % 7]; for (let xx = (yy + off) % 2; xx < COLS; xx += 2) g.fillRect(r.left + xx * c, r.top + yy * c, c, c); }
+    g.globalAlpha = 1;
+  }, 100);
+  // 5) 七圈彩虹方形冲击波
+  RB.forEach((col, i) => anim(560, (k, g) => {
+    const rad = Math.round(k * Math.max(fxW, fxH) * .8 / (2 * u)) * 2 * u, th = Math.max(u, Math.round((1 - k) * 4) * u);
+    g.globalAlpha = 1 - k; g.fillStyle = col;
+    for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
+    g.globalAlpha = 1;
+  }, 120 + i * 70));
+  // 6) 两侧像素喷泉 + 满屏彩色像素雨
+  for (let i = 0; i < 90; i++) { const left = i % 2 === 0; addP({ x: left ? r.left : r.right, y: r.bottom, vx: (left ? 1 : -1) * rand(40, 260), vy: rand(-1000, -420), g: 1200, max: rand(700, 1100), s: u * (i % 3 === 0 ? 3 : 2), c: RB[i % 7], delay: 180 + (i % 10) * 30 }); }
+  for (let i = 0; i < 110; i++) addP({ x: rand(0, fxW), y: rand(-60, fxH * .3), vx: rand(-30, 30), vy: rand(140, 380), g: 160, max: rand(800, 1300), s: u * (i % 3 ? 1 : 2), c: i % 6 === 0 ? '#fff' : RB[i % 7], delay: rand(200, 700) });
+  setTimeout(() => { app.classList.add('dim'); setTimeout(() => app.classList.remove('dim'), 260); }, 60);
+  setTimeout(() => shake(11, 420), 90);
+  classPulse(wrapEl, 'tetris', 520); setTimeout(() => classPulse(wrapEl, 'tetris', 520), 540);
+  classPulse(bgEl, 'pulse18', 1200);
+  Hap.fire(3);
+  const list = [['SUPER', 't-tetris'], ['CLEAR!', 't-tetris'], [pixelTextImg('全屏清空！', W), 't-cn']];
+  if (comboN >= 2) list.push(['COMBO ×' + comboN, 't-combo']);
+  banner('#banner', list, 1.3);
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
@@ -1061,7 +1127,7 @@ function updateFx(dt){
   for (let i = A.length - 1; i >= 0; i--) { A[i].t += dt; if (A[i].t > A[i].dur) A.splice(i, 1); }
   // 屏震只作用在棋盘，不移动按键
   const now = performance.now();
-  if (now < shakeUntil) { const m = Math.round(shakeMag * (shakeUntil - now) / 180); wrapEl.style.translate = `${Math.round(rand(-m, m))}px ${Math.round(rand(-m, m))}px`; }
+  if (now < shakeUntil) { const m = Math.round(shakeMag * (shakeUntil - now) / shakeDur); wrapEl.style.translate = `${Math.round(rand(-m, m))}px ${Math.round(rand(-m, m))}px`; }
   else if (wrapEl.style.translate) wrapEl.style.translate = '';
 }
 function drawFx(){
