@@ -282,7 +282,8 @@ const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
-  D:'#eef2ff', D2:'#63dcff', B:'#33353e', B2:'#646878', M:'#ee4f9c', M2:'#ffa9d4' }; // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
+  D:'#eef2ff', D2:'#63dcff', B:'#33353e', B2:'#646878', M:'#ee4f9c', M2:'#ffa9d4',
+  N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -306,8 +307,11 @@ SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
 SHAPES.B = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // M 两格短条：能横竖转；落下时只要消了行（1 或 2 行）就清空整个棋盘，按四消计分
 SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
-const isSpecial = t => t === 'D' || t === 'B' || t === 'M';
-const DOT_RATE = .26, BOMB_RATE = .17, MINI_RATE = .17; // 每一袋 7 块里额外混进一块的概率
+// N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
+SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
+const isSpecial = t => t === 'D' || t === 'B' || t === 'M' || t === 'N';
+// 每一袋（7 块）额外混进一块特殊块的概率；短条 .075 ≈ 全部方块的 1%
+const DOT_RATE = .26, BOMB_RATE = .17, MINI_RATE = .075, MID_RATE = .17; // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -431,6 +435,7 @@ const Sfx = {
     [72, 76, 79, 84, 88].forEach(m => { T(m, .7, 'square', .04, .36); T(m, .7, 'sawtooth', .018, .36); });  // 长和弦
     [96, 100, 103, 108, 103, 108, 112, 115].forEach((m, i) => T(m, .06, 'square', .04, .5 + i * .06));    // 高音闪烁收尾
   },
+  garbage(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(196, .12, 'square', .07, now); Au.tone(147, .2, 'square', .07, now + .11); Au.noise(.1, .1, now, 'lowpass', 700); },
   bomb(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(140, .35, 'triangle', .5, now, .25); Au.noise(.32, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); [0, .05, .11].forEach(d => Au.tone(900 - d * 4000, .04, 'square', .05, now + .06 + d)); },
   sink(){ if (this.ok()) Au.tone(1500, .16, 'square', .05, 0, .25); },
   hard(){ if (this.ok()) { Au.tone(110, .09, 'triangle', .35, 0, .45); Au.noise(.05, .12, 0, 'lowpass', 900); } },
@@ -541,7 +546,7 @@ function fillQueue(){
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
     const sp = rng(), at = Math.floor(rng() * 8);
-    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE) bag.splice(at, 0, 'M');
+    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE) bag.splice(at, 0, 'M'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE + MID_RATE) bag.splice(at, 0, 'N');
     queue.push(...bag);
   }
 }
@@ -556,7 +561,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || isSpecial(t) ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'B' || t === 'M' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -585,7 +590,7 @@ function stepDown(){
 function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'B') return false;
   const from = cur.r, to = (from + 1) % 4;
-  const kicks = cur.t === 'M' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
+  const kicks = cur.t === 'M' || cur.t === 'N' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -617,6 +622,18 @@ function explodeBomb(){
   cur = null;
   if (by + 1 < HID) { topOut(); return; }
   spawn();
+}
+// 在当前最高的方块上面加一行，随机缺 2～6 格；顶到天花板放不下就返回 false
+function addGarbageRow(){
+  let top = TROWS; for (let y = 0; y < TROWS; y++) if (board[y].some(Boolean)) { top = y; break; }
+  const gy = top - 1; if (gy < 0) return false;
+  const row = Array(COLS).fill(null); let filled = 0;
+  for (let x = 0; x < COLS; x++) if (rng() < .65) { row[x] = 'X'; filled++; }
+  while (filled < 4) { const x = Math.floor(rng() * COLS); if (!row[x]) { row[x] = 'X'; filled++; } }
+  while (filled > 8) { const x = Math.floor(rng() * COLS); if (row[x]) { row[x] = null; filled--; } }
+  board[gy] = row;
+  fxGarbage(gy, row); Sfx.garbage(); Hap.fire(1);
+  return true;
 }
 function hardDrop(){
   if (!cur) return;
@@ -660,6 +677,7 @@ function lock(){
   } else {
     combo = 0;
     if (!above) Sfx.lock();
+    if (pieceT === 'N' && !addGarbageRow()) { topOut(); return; } // 中条没消行：罚一行
   }
   if (above) { topOut(); return; }
   spawn();
@@ -962,6 +980,15 @@ function fxSuper(snap, wiped, comboN){
   const list = [['SUPER', 't-tetris'], ['CLEAR!', 't-tetris'], [pixelTextImg('全屏清空！', W), 't-cn']];
   if (comboN >= 2) list.push(['COMBO ×' + comboN, 't-combo']);
   banner('#banner', list, 1.3);
+}
+function fxGarbage(gy, row){
+  const r = bRect(), c = CELL, u = px(c), sy = r.top + (gy - HID) * c;
+  if (gy >= HID) anim(260, (k, g) => { // 新加的那一行红白交替闪几下
+    if (Math.floor(k * 6) % 2 === 0) { g.fillStyle = k < .5 ? '#ff5a4a' : '#fff'; g.globalAlpha = .75 * (1 - k); row.forEach((t, x) => { if (t) g.fillRect(r.left + x * c, sy, c, c); }); g.globalAlpha = 1; }
+  });
+  row.forEach((t, x) => { if (t && gy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + .5) * c, y: sy, vx: rand(-60, 60), vy: rand(-150, -50), g: 600, max: rand(180, 300), s: u, c: i ? '#7d8398' : '#ff5a4a' }); });
+  shake(3, 150);
+  banner('#banner', [['+1 ROW', 't-combo']], .45);
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
