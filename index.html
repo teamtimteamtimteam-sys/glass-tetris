@@ -23,7 +23,7 @@
   --ctrl-h:150px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--line);font-family:var(--px);overscroll-behavior:none;touch-action:none}
+html,body{position:fixed;left:0;top:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--line);font-family:var(--px);overscroll-behavior:none;touch-action:none}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
 
@@ -320,7 +320,7 @@ SHAPES.V = [
 ];
 const isSpecial = t => t === 'D' || t === 'B' || t === 'M' || t === 'N' || t === 'V';
 // 各特殊块占全部方块的比例。每袋 7 块最多混进 1 块特殊块，所以每袋的概率 = 占比 × (7 + 每袋特殊块的期望个数)
-const SPECIAL_SHARE = [['D', .04], ['N', .02], ['B', .02], ['M', .01], ['V', .015]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['B', .03], ['M', .015], ['V', .01]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0), PER_BAG = 7 / (1 - SHARE_SUM); // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
@@ -528,15 +528,18 @@ const Hap = {
   el: null,
   init(){
     const l = document.createElement('label'), i = document.createElement('input');
-    i.type = 'checkbox'; i.setAttribute('switch', ''); l.appendChild(i);
-    l.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
+    i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1; i.setAttribute('aria-hidden', 'true'); l.appendChild(i);
+    // 放在屏幕左上角以内（不能放到屏幕外）：万一 iOS 把焦点给了它，也不会为了「露出输入框」把整页往上推
+    l.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
+    this.input = i;
     document.body.appendChild(l); this.el = l;
   },
   fire(n){
     if (!SET.haptic) return;
     const k = SET.haptic === 1 ? 1 : n;
     if (navigator.vibrate) { navigator.vibrate(k > 1 ? [20, 35, 20] : 12); return; }
-    for (let j = 0; j < Math.min(k, 3); j++) j ? setTimeout(() => this.el.click(), j * 50) : this.el.click();
+    const tick = () => { this.el.click(); if (document.activeElement === this.input) this.input.blur(); pinPage(); };
+    for (let j = 0; j < Math.min(k, 3); j++) j ? setTimeout(tick, j * 50) : tick();
   },
 };
 
@@ -1339,6 +1342,19 @@ addEventListener('keyup', e => {
 });
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('touchmove', e => { if (!e.target.closest('.screen')) e.preventDefault(); }, { passive: false });
+// 游戏画面里的触摸一律不交给系统处理（双击缩放、滚动、把焦点移到别处都不会发生）；菜单页面除外，那里要能点按钮和拖滑块
+document.addEventListener('touchstart', e => { if (!e.target.closest('.screen')) e.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault());
+// 万一页面还是被系统推走了，立刻拉回原位
+function pinPage(){
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+  const d = document.scrollingElement || document.documentElement; if (d.scrollTop || d.scrollLeft) { d.scrollTop = 0; d.scrollLeft = 0; }
+  if (document.body.scrollTop) document.body.scrollTop = 0;
+}
+addEventListener('scroll', pinPage, { passive: true });
+if (window.visualViewport) { visualViewport.addEventListener('scroll', pinPage); }
+document.addEventListener('focusin', e => { if (!e.target.closest('.screen')) { e.target.blur(); pinPage(); } });
+document.addEventListener('touchend', pinPage, { passive: true });
 
 // 进入后台 / 来电 / 系统打断：自动暂停
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
@@ -1420,7 +1436,7 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', toMenu));
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => openScores(b.dataset.tab)));
 $('#dailyGo').onclick = () => startGame('daily');
-$('#pauseBtn').addEventListener('click', () => state === 'pause' ? resumeGame() : pauseGame());
+$('#pauseBtn').addEventListener('pointerup', e => { e.preventDefault(); state === 'pause' ? resumeGame() : pauseGame(); });
 $('#resumeBtn').onclick = resumeGame;
 $('#restartBtn').onclick = () => startGame(mode);
 $('#quitBtn').onclick = toMenu;
