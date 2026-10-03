@@ -282,7 +282,7 @@ const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
-  D:'#eef2ff', D2:'#63dcff', B:'#e2452e', B2:'#ffd23f', M:'#f2c14e', M2:'#ff7ad9' }; // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
+  D:'#eef2ff', D2:'#63dcff', B:'#33353e', B2:'#646878', M:'#ee4f9c', M2:'#ffa9d4' }; // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -361,8 +361,6 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
-  if (mark === 'M') { g.fillStyle = '#fff'; g.fillRect(4 * u, 3 * u, D - 8 * u, D - 6 * u); g.fillRect(3 * u, 4 * u, D - 6 * u, D - 8 * u); } // 短条：中间一颗白色十字星
-  if (mark === 'B') { g.fillStyle = '#1a0d0a'; g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, u, u); } // 炸弹：黑芯 + 一点火星
   return c;
 }
 function makeGhost(color, D, alpha){
