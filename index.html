@@ -74,7 +74,16 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
 .bn.show{animation:bnpop var(--d,.45s) steps(9) forwards}
 @keyframes bnpop{0%{opacity:1;transform:translate(-50%,-50%) scale(.5)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}35%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
 .t-tetris{font-size:20px;color:#fff}
-.t-sub{font-family:var(--cjk);font-weight:900;font-size:15px;color:var(--hi);margin-top:6px}
+.t-cn{margin-top:10px;text-shadow:none}
+.pxcn{display:block;margin:0 auto;image-rendering:pixelated;image-rendering:crisp-edges}
+#boardWrap.tetris{animation:tflash .52s steps(1) 1}
+@keyframes tflash{
+  0%{border-color:#fff;box-shadow:0 0 0 4px #f2c14e,6px 6px 0 4px #000}
+  20%{border-color:#f2c14e;box-shadow:0 0 0 4px #ff6a3c,6px 6px 0 4px #000}
+  40%{border-color:#7fd4ff;box-shadow:0 0 0 4px #a066c2,6px 6px 0 4px #000}
+  60%{border-color:#fff;box-shadow:0 0 0 4px #5bb360,6px 6px 0 4px #000}
+  80%{border-color:#f2c14e;box-shadow:0 0 0 4px #ff6a3c,6px 6px 0 4px #000}
+  100%{border-color:var(--line);box-shadow:0 0 0 4px var(--edge),6px 6px 0 4px #000}}
 .t-b2b{font-size:10px;color:#7fd4ff;margin-top:8px}
 .t-combo{font-size:9px;color:var(--hi);margin-top:7px}
 .t-clear{font-size:12px;color:#fff}
@@ -398,9 +407,27 @@ const Sfx = {
   clear(n, combo){
     if (!this.ok()) return;
     const up = Math.min(combo > 1 ? combo - 1 : 0, 12), base = 72 + up, now = Au.ctx.currentTime;
-    const seq = [[], [0], [0, 4], [0, 4, 7], [0, 4, 7, 12, 16]][n];
-    seq.forEach((s, i) => Au.tone(midi(base + s), n === 4 ? .09 : .07, 'square', .07, now + i * .045));
-    if (n === 4) { Au.tone(midi(base + 24), .16, 'square', .06, now + .2); Au.noise(.12, .08, now, 'highpass', 6000); Au.tone(70, .2, 'triangle', .3, now, .5); }
+    const T = (semi, dur, type, vol, at, slide) => Au.tone(midi(base + semi), dur, type, vol, now + at, slide || 0);
+    if (n === 1) {
+      // 单消：一声干脆的短“嘀”
+      T(0, .07, 'square', .07, 0); Au.noise(.03, .05, now, 'highpass', 5000);
+    } else if (n === 2) {
+      // 双消：两级上行，三角波，收尾带一点泛音
+      T(0, .08, 'triangle', .16, 0); T(7, .14, 'triangle', .16, .07); T(19, .1, 'square', .025, .07);
+    } else if (n === 3) {
+      // 三消：三级快速上行 + 锯齿波加厚 + 低频一顿
+      [0, 4, 7].forEach((s, i) => { T(s, .08, 'square', .06, i * .055); T(s + 12, .08, 'sawtooth', .03, i * .055); });
+      T(12, .2, 'square', .06, .165); T(16, .2, 'square', .04, .165);
+      Au.tone(90, .16, 'triangle', .3, now, .5); Au.noise(.09, .07, now, 'bandpass', 2500);
+    } else {
+      // 四消：上冲扫频 → 两个八度的快速琶音 → 大三和弦长音 → 高音闪烁收尾，底下一声重低音
+      Au.tone(180, .16, 'sawtooth', .07, now, 6);
+      Au.tone(60, .32, 'triangle', .45, now, .4); Au.noise(.2, .12, now, 'lowpass', 1400);
+      [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => T(s, .07, 'square', .07, .04 + i * .035));
+      [12, 16, 19, 24].forEach(s => { T(s, .42, 'square', .045, .3); T(s, .42, 'sawtooth', .02, .3); });
+      [36, 31, 36, 40].forEach((s, i) => T(s, .06, 'square', .04, .34 + i * .07));
+      Au.noise(.3, .06, now + .3, 'highpass', 7000);
+    }
   },
   level(max){ if (!this.ok()) return; const now = Au.ctx.currentTime; (max ? [60, 64, 67, 72, 76, 79, 84] : [67, 72, 76]).forEach((m, i) => Au.tone(midi(m), .07, 'square', .06, now + i * .05)); },
   pc(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [72, 76, 79, 84, 88, 91, 96].forEach((m, i) => Au.tone(midi(m), .1, 'square', .06, now + i * .06)); },
@@ -867,12 +894,33 @@ function fxClear(snap, n, b2bLv, comboN, pc){
       for (let i = 0; i < cnt; i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 420); addP({ x: r.left + (x + .5) * c, y: row.sy + c / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, g: 650, max: rand(260, 420), s: u * (i % 3 === 0 ? 2 : 1), c: i % 2 ? COLORS[t] : TYPES[(x + i) % 7] && COLORS[TYPES[(x + i) % 7]], delay: 80 }); }
     });
     setTimeout(() => { app.classList.add('dim'); setTimeout(() => app.classList.remove('dim'), 130); }, 60);
-    setTimeout(() => shake(4 + b2bLv, 180), 80);
+    setTimeout(() => shake(7 + b2bLv, 260), 80);
+    // —— 加强部分（都只是画在特效层上，不挡操作）——
+    const cy = rows.length ? rows.reduce((s, q) => s + q.sy, 0) / rows.length + c / 2 : r.top + ROWS * c / 2;
+    // 1) 方形像素冲击波：从消除处向全屏一圈圈扩散
+    ['#ffffff', '#f2c14e', '#ff6a3c', '#7fd4ff'].slice(0, Math.min(4, 3 + b2bLv)).forEach((col, i) => anim(460, (k, g) => {
+      const rad = Math.round(k * Math.max(fxW, fxH) * .75 / (2 * u)) * 2 * u, th = Math.max(u, Math.round((1 - k) * 3) * u);
+      g.globalAlpha = 1 - k; g.fillStyle = col;
+      for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
+      g.globalAlpha = 1;
+    }, 70 + i * 60));
+    // 2) 整个棋盘彩色棋盘格闪两下
+    anim(150, (k, g) => {
+      const ph = Math.floor(k * 4) % 2; g.globalAlpha = .26 * (1 - k);
+      for (let yy = 0; yy < ROWS; yy++) for (let xx = 0; xx < COLS; xx++) if ((xx + yy + ph) % 2 === 0) { g.fillStyle = COLORS[TYPES[(xx + yy) % 7]]; g.fillRect(r.left + xx * c, r.top + yy * c, c, c); }
+      g.globalAlpha = 1;
+    }, 90);
+    // 3) 像素喷泉：大颗像素从消除处往上喷
+    for (let i = 0; i < Math.round(36 * boost); i++) addP({ x: r.left + rand(0, W), y: cy, vx: rand(-90, 90), vy: rand(-760, -320), g: 1100, max: rand(520, 820), s: u * (i % 4 === 0 ? 3 : 2), c: COLORS[TYPES[i % 7]], delay: 110 });
+    // 4) 彩色像素从屏幕顶上洒下来
+    for (let i = 0; i < Math.round(40 * boost); i++) addP({ x: rand(0, fxW), y: rand(-30, r.top), vx: rand(-20, 20), vy: rand(120, 300), g: 200, max: rand(600, 950), s: u * (i % 3 ? 1 : 2), c: i % 5 === 0 ? '#fff' : COLORS[TYPES[i % 7]], delay: rand(150, 420) });
+    // 5) 棋盘边框跳色
+    classPulse(wrapEl, 'tetris', 520);
     Hap.fire(b2bLv > 0 ? 3 : 2);
   }
   // 文字
   const lines_ = [];
-  if (n === 4) { lines_.push(['TETRIS!', 't-tetris'], ['慧玲你真棒！', 't-sub']); if (b2bLv > 0) lines_.push([b2bLv === 1 ? 'B2B' : 'B2B ×' + b2bLv, 't-b2b']); }
+  if (n === 4) { lines_.push(['TETRIS!', 't-tetris'], [pixelTextImg('肥玲你真棒！', COLS * c), 't-cn']); if (b2bLv > 0) lines_.push([b2bLv === 1 ? 'B2B' : 'B2B ×' + b2bLv, 't-b2b']); }
   else if (n === 3) lines_.push(['TRIPLE', 't-clear']);
   else if (n === 2) lines_.push(['DOUBLE', 't-clear']);
   if (comboN >= 2) { lines_.push(['COMBO ×' + comboN, 't-combo']); classPulse(wrapEl, 'combo', 240); for (let i = 0; i < Math.min(comboN, 8) * 2; i++) addP({ x: rand(r.left, r.right), y: rand(r.top, r.bottom), vx: 0, vy: -60, max: 220, s: u, c: '#f2c14e', delay: 60 }); }
@@ -885,7 +933,33 @@ function fxClear(snap, n, b2bLv, comboN, pc){
       for (let i = 1; i < 10; i++) for (let x = (i * 37) % (3 * u); x < fxW; x += 3 * u * (1 + i % 3)) g.fillRect(x, y - i * 2 * u, u, u);
     }, 120);
   }
-  if (lines_.length) banner('#banner', lines_, pc ? .9 : n === 4 ? .5 : .4);
+  if (lines_.length) banner('#banner', lines_, pc ? .9 : n === 4 ? .95 : .4);
+}
+// 中文像素字：像素字体里没有汉字，所以先用很小的字号画出来、按透明度一刀切成硬边像素，再整数倍放大
+const pxTextCache = {};
+function pixelText(text){
+  if (pxTextCache[text]) return pxTextCache[text];
+  const size = 16, font = `400 ${size}px -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif`;
+  const m = document.createElement('canvas').getContext('2d'); m.font = font;
+  const chars = [...text], ws = chars.map(ch => Math.ceil(m.measureText(ch).width)), w = ws.reduce((a, b) => a + b + 1, 0), h = size + 4;
+  const src = document.createElement('canvas'); src.width = w; src.height = h;
+  const g = src.getContext('2d', { willReadFrequently: true }); g.font = font; g.textBaseline = 'top'; g.fillStyle = '#fff';
+  const starts = []; let x = 0; chars.forEach((ch, i) => { starts.push(x); g.fillText(ch, x, 1); x += ws[i] + 1; });
+  const d = g.getImageData(0, 0, w, h).data;
+  const out = document.createElement('canvas'); out.width = w + 1; out.height = h + 1;
+  const o = out.getContext('2d'), pal = ['#f2c14e', '#ff8a4c', '#ff6a8a', '#7fd4ff', '#7be08a', '#f2c14e'];
+  const on = (px, py) => d[(py * w + px) * 4 + 3] > 110; // 常规字重 + 这个阈值笔画最清楚；加粗会糊成一团
+  o.fillStyle = '#000'; for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) if (on(px, py)) o.fillRect(px + 1, py + 1, 1, 1); // 右下 1 像素黑影
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) if (on(px, py)) {
+    let ci = 0; while (ci + 1 < starts.length && px >= starts[ci + 1]) ci++;
+    o.fillStyle = pal[ci % pal.length]; // 每个字一种颜色
+    o.fillRect(px, py, 1, 1);
+  }
+  return pxTextCache[text] = { url: out.toDataURL(), w: out.width, h: out.height };
+}
+function pixelTextImg(text, maxW){
+  const p = pixelText(text), sc = Math.max(1, Math.min(3, Math.floor(maxW / p.w)));
+  return `<img class="pxcn" alt="${text}" src="${p.url}" style="width:${p.w * sc}px;height:${p.h * sc}px">`;
 }
 function banner(sel, list, dur){
   const el = $(sel);
