@@ -282,7 +282,7 @@ const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
-  D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', M:'#ee4f9c', M2:'#ffa9d4',
+  D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', M:'#2f8cff', MB:'#2f8cff', MB2:'#9cc8ff', MR:'#ff3b4f', MR2:'#ff9aa3', C:'#9fe3ff', C2:'#eafaff',
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
   V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
@@ -306,8 +306,12 @@ const KI = { '01':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '12':[[0,0],[-1,0],[2,0],[
 // 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），F 2×2 火焰方块（落地后烧光它经过的两列和左右各一列）
 SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
 SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
-// M 两格短条：能横竖转；落下时只要消了行（1 或 2 行）就清空整个棋盘，按四消计分
-SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
+// M 两格磁铁块：第 1 格蓝、第 2 格红，能横竖转；落地时把同一行左右各 2 格内的方块吸过来
+SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[1, 1], [0, 1]], [[0, 1], [0, 0]]];
+// C 三格冰晶块：中间一格、上面一格、左边一格；含有冰晶的行填满了也先不消，等下一次消行时一起结算
+SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0], [0, 0]], [[0, 0], [1, 1], [1, 0]]];
+// 一块方块里每一格落到棋盘上用哪种贴图：磁铁块两格不同色，其余都是自己的类型
+const cellKey = (t, i) => t === 'M' ? (i ? 'MR' : 'MB') : t;
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
 // V 五格变形块：五种形态（十字、T、U、拐角、Z），每按一次旋转随机换成另一种
@@ -318,9 +322,9 @@ SHAPES.V = [
   [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
   [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]],
 ];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'M' || t === 'N' || t === 'V';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'M' || t === 'N' || t === 'V' || t === 'C';
 // 各特殊块占全部方块的比例。每袋 7 块最多混进 1 块特殊块，所以每袋的概率 = 占比 × (7 + 每袋特殊块的期望个数)
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['M', .015], ['V', .01]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .015], ['M', .015], ['V', .01], ['C', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0), PER_BAG = 7 / (1 - SHARE_SUM); // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
@@ -362,6 +366,7 @@ let CELL = 0, CD = 0, blockCache = {}, ghostCache = {}, smallCache = {};
 function makeBlock(color, D, mark){
   const c = document.createElement('canvas'); c.width = c.height = D;
   const g = c.getContext('2d'), u = Math.max(1, Math.round(D / 10));
+  const ice = mark === 'C';
   if (mark === 'D') { // 小点：深色底上一颗发亮的芯，和普通方块一眼能分开
     g.fillStyle = '#10142a'; g.fillRect(0, 0, D, D);
     g.fillStyle = shade(color, -.35); g.fillRect(u, u, D - 2 * u, D - 2 * u);
@@ -375,6 +380,7 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (ice) { g.fillStyle = '#fff'; for (let i = 0; i < 4; i++) g.fillRect((3 + i) * u, (6 - i) * u, u, u); g.fillRect(6 * u, 6 * u, u, u); } // 冰晶：一道斜向的白色反光
   return c;
 }
 function makeGhost(color, D, alpha){
@@ -395,7 +401,7 @@ function buildCaches(){
   }
   gridCache = null;
 }
-function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D, isSpecial(t) ? t : null)); }
+function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D, isSpecial(t[0]) ? t[0] : null)); }
 
 /* ================= 声音 ================= */
 const Au = {
@@ -435,16 +441,9 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
-  superClear(){
-    if (!this.ok()) return;
-    const now = Au.ctx.currentTime, T = (m, dur, type, vol, at) => Au.tone(midi(m), dur, type, vol, now + at);
-    Au.tone(110, .3, 'sawtooth', .09, now, 9);                                   // 上冲扫频
-    [0, .09, .18].forEach(d => Au.tone(2600, .12, 'square', .05, now + d, .15)); // 三声激光
-    [60, 64, 67, 72, 76, 79, 84, 88, 91, 96].forEach((m, i) => T(m, .07, 'square', .07, .05 + i * .03)); // 三个八度的琶音
-    Au.tone(55, .7, 'sine', .6, now + .34, .5); Au.noise(.6, .3, now + .34, 'lowpass', 1300); Au.noise(.25, .12, now + .34, 'highpass', 6000); // 大爆炸
-    [72, 76, 79, 84, 88].forEach(m => { T(m, .7, 'square', .04, .36); T(m, .7, 'sawtooth', .018, .36); });  // 长和弦
-    [96, 100, 103, 108, 103, 108, 112, 115].forEach((m, i) => T(m, .06, 'square', .04, .5 + i * .06));    // 高音闪烁收尾
-  },
+  magnet(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .22, 'sawtooth', .07, now, 2.2); Au.tone(240, .22, 'square', .04, now, 2.2); Au.tone(980, .05, 'square', .05, now + .2); },
+  freeze(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [96, 91, 88, 84].forEach((m, i) => Au.tone(midi(m), .09, 'triangle', .09, now + i * .05)); Au.noise(.12, .05, now, 'highpass', 8000); },
+  iceBreak(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.22, .16, now + .04, 'highpass', 6500); [100, 103, 96, 108, 101, 105].forEach((m, i) => Au.tone(midi(m), .05, 'square', .045, now + .05 + i * .035)); },
   garbage(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(196, .12, 'square', .07, now); Au.tone(147, .2, 'square', .07, now + .11); Au.noise(.1, .1, now, 'lowpass', 700); },
   fire(){ // 火焰：一声"呼"的上扬风声 + 低频轰一下 + 几下噼啪
     if (!this.ok()) return; const now = Au.ctx.currentTime;
@@ -552,7 +551,6 @@ const Hap = {
 let mode = 'play', state = 'menu'; // menu | play | countdown | pause | dying | over
 let board, cur, queue, rng, hold, holdUsed;
 let score, lines, level, combo, b2b, maxCombo, tetrises, playTime, pcs;
-let superClears = 0;
 let dropAcc = 0, lockTimer = 0, lockResets = 0, lowestY = 0, onGround = false;
 let dieT = 0, lastEntryId = null;
 const input = { dir: 0, held: { left: false, right: false }, dasT: 0, arrT: 0, soft: false };
@@ -580,7 +578,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'M' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'M' || t === 'C' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -639,7 +637,7 @@ function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
   if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
-  const kicks = cur.t === 'M' || cur.t === 'N' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
+  const kicks = cur.t === 'M' || cur.t === 'N' || cur.t === 'C' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -692,41 +690,60 @@ function hardDrop(){
   fxHardDrop(y0, y1); Sfx.hard(); Hap.fire(1);
   lock();
 }
+// 一次消 n 行的基础分；带上冰封行时可能超过 4 行，每多一行再加 300
+const linePts = n => n <= 4 ? LINE_PTS[n] : LINE_PTS[4] + (n - 4) * 300;
+const rowFull = y => board[y].every(Boolean);
+const rowIced = y => board[y].includes('C');
+// 磁铁：每个磁铁格所在的行，左右各看 2 格——紧挨着的那格空着、再外面一格有方块，就把它吸过来一格
+function magnetPull(cs){
+  const rows = new Map(), moved = [];
+  for (const [x, y] of cs) { if (y < 0) continue; const r = rows.get(y) || [x, x]; r[0] = Math.min(r[0], x); r[1] = Math.max(r[1], x); rows.set(y, r); }
+  for (const [y, [xl, xr]] of rows) {
+    for (const [near, far] of [[xl - 1, xl - 2], [xr + 1, xr + 2]]) {
+      if (far < 0 || far >= COLS || board[y][near] || !board[y][far]) continue;
+      board[y][near] = board[y][far]; board[y][far] = null; moved.push([far, near, y, board[y][near]]);
+    }
+  }
+  return moved;
+}
+let frozenRows = 0;
 function lock(){
   if (cur.t === 'F') { burnFire(); return; }
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
-  for (const [x, y] of cs) { if (y >= 0) board[y][x] = cur.t; if (y >= HID) above = false; }
+  cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
   cur = null;
-  const full = [];
-  for (let y = 0; y < TROWS; y++) if (board[y].every(Boolean)) full.push(y);
-  const n = full.length;
-  if (n) {
+  if (pieceT === 'M') { fxMagnet(cs, magnetPull(cs)); Sfx.magnet(); }
+  // 没有冰晶的满行才会「触发」消行；有冰晶的满行先冻着，等触发时一起结算
+  const trig = [], iced = [];
+  for (let y = 0; y < TROWS; y++) if (rowFull(y)) (rowIced(y) ? iced : trig).push(y);
+  if (trig.length) {
+    const full = trig.concat(iced).sort((a, b) => a - b), n = full.length, iceN = iced.length, nEff = Math.min(n, 4);
     const snap = full.map(y => ({ y, cells: board[y].slice() }));
     for (const y of full) { board.splice(y, 1); board.unshift(Array(COLS).fill(null)); }
+    frozenRows = 0;
     combo++; maxCombo = Math.max(maxCombo, combo);
-    // 短条消了行：把剩下的方块全部清掉，按四消给分（不影响 B2B 连续计数）
-    const sup = pieceT === 'M'; let wiped = null;
-    if (sup) { wiped = []; board.forEach((row, y) => row.forEach((t, x) => { if (t) wiped.push([x, y, t]); })); board = newBoard(); superClears++; }
-    let pts = LINE_PTS[sup ? 4 : n] * level, b2bNow = false;
-    if (n === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else if (!sup) b2b = 0;
+    let pts = linePts(n) * level * (iceN ? 2 : 1), b2bNow = false; // 带着冰封行一起消：行数 = 触发行 + 冰封行，分数翻倍
+    if (nEff === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else b2b = 0;
     if (combo >= 2) pts += 50 * (combo - 1) * level;
-    const pc = !sup && board.every(row => row.every(c => !c));
-    if (pc) { pts += (n === 4 && b2bNow ? 3200 : PC_PTS[n]) * level; pcs++; }
+    const pc = board.every(row => row.every(c => !c));
+    if (pc) { pts += (nEff === 4 && b2bNow ? 3200 : PC_PTS[nEff]) * level; pcs++; }
     score += pts;
     const oldLv = level;
     lines += n;
     if (mode !== 'survival') level = Math.min(MAX_LEVEL, Math.floor(lines / LINES_PER_LEVEL) + 1);
-    if (sup) { fxSuper(snap, wiped, combo); Sfx.superClear(); }
-    else { fxClear(snap, n, b2bNow ? b2b - 1 : 0, combo, pc); Sfx.clear(n, combo); }
+    fxClear(snap, nEff, b2bNow ? b2b - 1 : 0, combo, pc, iceN, n); Sfx.clear(nEff, combo);
+    if (iceN) Sfx.iceBreak();
     if (pc) setTimeout(() => Sfx.pc(), 120);
     if (level > oldLv) levelUp();
   } else {
     combo = 0;
     if (!above) Sfx.lock();
+    if (iced.length > frozenRows) { fxFrozen(iced); Sfx.freeze(); } // 又有一行被冻住了
+    frozenRows = iced.length;
     if (pieceT === 'N' && !addGarbageRow()) { topOut(); return; } // 中条没消行：罚一行
   }
   if (above) { topOut(); return; }
@@ -743,7 +760,7 @@ function startGame(m){
   Au.init();
   mode = m || mode;
   rng = mode === 'daily' ? mulberry32(dailySeed(todayKey())) : Math.random;
-  board = newBoard(); queue = []; qOrig = []; hold = null; holdUsed = false;
+  board = newBoard(); queue = []; qOrig = []; hold = null; holdUsed = false; frozenRows = 0;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
   clearInput(); P.length = 0; A.length = 0;
@@ -877,6 +894,11 @@ function render(){
     for (let y = HID; y < TROWS; y++) {
       const row = board[y];
       for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : row[x]], x, y);
+      if (!dying && rowFull(y) && rowIced(y)) { // 冻住的满行：罩一层冰蓝，再闪几颗白点
+        const sy = (y - HID) * CD, u = Math.max(1, Math.round(CD / 10)), ph = Math.floor(performance.now() / 150);
+        ctx.fillStyle = 'rgba(180,232,255,.3)'; ctx.fillRect(0, sy, COLS * CD, CD);
+        ctx.fillStyle = '#fff'; for (let x = 0; x < COLS; x++) if ((x * 3 + y + ph) % 5 === 0) ctx.fillRect(x * CD + 6 * u, sy + 3 * u, u, u);
+      }
     }
     if (cur && (state === 'play' || state === 'countdown' || state === 'pause')) {
       const cs = SHAPES[cur.t][cur.r], gm = ghostMode();
@@ -885,8 +907,8 @@ function render(){
       const k = !canMove(0, 1) ? Math.floor(lockTimer / 60) % 2 : 0;
       ctx.globalAlpha = k ? .72 : 1;
       const nowMs = performance.now();
-      const skin = cur.t === 'F' ? ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3] : isSpecial(cur.t) && Math.floor(nowMs / 110) % 2 ? cur.t + '2' : cur.t; // 特殊方块闪烁；火焰方块三帧火色轮换
-      for (const [cx, cy] of cs) blit(blockCache[skin], cur.x + cx, cur.y + cy);
+      const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
+      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cellKey(cur.t, i) + (blink ? '2' : '')], cur.x + cx, cur.y + cy));
       ctx.globalAlpha = 1;
     }
   }
@@ -898,7 +920,7 @@ function drawPiece(g, t, ox, oy, s, alpha = 1){
   for (const [x, y] of cs) { a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); d = Math.max(d, y); }
   const w = (b - a + 1) * s, h = (d - c + 1) * s;
   g.globalAlpha = alpha;
-  for (const [x, y] of cs) g.drawImage(small(t, s), Math.round(ox - w / 2 + (x - a) * s), Math.round(oy - h / 2 + (y - c) * s));
+  cs.forEach(([x, y], i) => g.drawImage(small(cellKey(t, i), s), Math.round(ox - w / 2 + (x - a) * s), Math.round(oy - h / 2 + (y - c) * s)));
   g.globalAlpha = 1;
 }
 function drawSide(){
@@ -991,71 +1013,41 @@ function fxFire(bx, by, cols, hit){
   shake(5, 260);
   banner('#banner', hit.length ? [['BURN!', 't-clear'], ['-' + hit.length + ' BLOCKS', 't-combo']] : [['BURN!', 't-clear']], .5);
 }
-function fxSuper(snap, wiped, comboN){
-  const r = bRect(), c = CELL, u = px(c), W = COLS * c, H = ROWS * c, cx = r.left + W / 2;
-  const rows = snap.filter(q => q.y >= HID).map(q => r.top + (q.y - HID) * c);
-  const cy = rows.length ? rows.reduce((a, b) => a + b, 0) / rows.length + c / 2 : r.top + H / 2;
-  const RB = ['#ff4f6d', '#ff9838', '#ffd23f', '#45ec8c', '#35e0ff', '#506fcb', '#b36bff'];
-  // 1) 消掉的行先闪白
-  anim(120, (k, g) => { g.fillStyle = '#fff'; g.globalAlpha = 1 - k * .5; for (const sy of rows) g.fillRect(r.left, sy, W, c); g.globalAlpha = 1; });
-  // 2) 剩下的方块从消除处向外一圈圈闪白、碎成自己颜色的像素飞走
-  const cells = wiped.filter(([, y]) => y >= HID).map(([x, y, t]) => { const X = r.left + x * c, Y = r.top + (y - HID) * c; return { X, Y, t, d: 90 + Math.hypot(X + c / 2 - cx, Y + c / 2 - cy) * .9 }; });
-  anim(560, (k, g) => {
-    const t = k * 560;
-    for (const q of cells) {
-      if (t < q.d) g.drawImage(blockCache[q.t], q.X, q.Y, c, c);                // 还没轮到：原样留着
-      else if (t < q.d + 80) { g.fillStyle = '#fff'; g.fillRect(q.X, q.Y, c, c); } // 轮到了：闪白
-    }
-  });
-  for (const q of cells) for (let i = 0; i < 4; i++) {
-    const a = Math.atan2(q.Y - cy, q.X - cx) + rand(-.7, .7), sp = rand(160, 520);
-    addP({ x: q.X + c / 2, y: q.Y + c / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 140, g: 700, max: rand(380, 700), s: u * (i === 0 ? 2 : 1), c: COLORS[q.t] || '#fff', delay: q.d + 60 });
-  }
-  // 3) 全屏频闪
-  anim(380, (k, g) => { if (Math.floor(k * 8) % 2 === 0) { g.fillStyle = `rgba(255,255,255,${.55 * (1 - k)})`; g.fillRect(0, 0, fxW, fxH); } }, 60);
-  // 4) 彩虹像素条在棋盘里向上滚
-  anim(700, (k, g) => {
-    g.globalAlpha = .4 * (1 - k); const off = Math.floor(k * 28);
-    for (let yy = 0; yy < ROWS; yy++) { g.fillStyle = RB[(yy + off) % 7]; for (let xx = (yy + off) % 2; xx < COLS; xx += 2) g.fillRect(r.left + xx * c, r.top + yy * c, c, c); }
-    g.globalAlpha = 1;
-  }, 100);
-  // 5) 七圈彩虹方形冲击波
-  RB.forEach((col, i) => anim(560, (k, g) => {
-    const rad = Math.round(k * Math.max(fxW, fxH) * .8 / (2 * u)) * 2 * u, th = Math.max(u, Math.round((1 - k) * 4) * u);
-    g.globalAlpha = 1 - k; g.fillStyle = col;
-    for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
-    g.globalAlpha = 1;
-  }, 120 + i * 70));
-  // 6) 两侧像素喷泉 + 满屏彩色像素雨
-  for (let i = 0; i < 90; i++) { const left = i % 2 === 0; addP({ x: left ? r.left : r.right, y: r.bottom, vx: (left ? 1 : -1) * rand(40, 260), vy: rand(-1000, -420), g: 1200, max: rand(700, 1100), s: u * (i % 3 === 0 ? 3 : 2), c: RB[i % 7], delay: 180 + (i % 10) * 30 }); }
-  for (let i = 0; i < 110; i++) addP({ x: rand(0, fxW), y: rand(-60, fxH * .3), vx: rand(-30, 30), vy: rand(140, 380), g: 160, max: rand(800, 1300), s: u * (i % 3 ? 1 : 2), c: i % 6 === 0 ? '#fff' : RB[i % 7], delay: rand(200, 700) });
-  setTimeout(() => { app.classList.add('dim'); setTimeout(() => app.classList.remove('dim'), 260); }, 60);
-  setTimeout(() => shake(11, 420), 90);
-  classPulse(wrapEl, 'tetris', 520); setTimeout(() => classPulse(wrapEl, 'tetris', 520), 540);
-  classPulse(bgEl, 'pulse18', 1200);
-  Hap.fire(3);
-  const list = [['SUPER', 't-tetris'], ['CLEAR!', 't-tetris'], [pixelTextImg('全屏清空！', W), 't-cn']];
-  if (comboN >= 2) list.push(['COMBO ×' + comboN, 't-combo']);
-  banner('#banner', list, 1.3);
-}
-function fxGarbage(gy, row){
-  const r = bRect(), c = CELL, u = px(c), sy = r.top + (gy - HID) * c;
-  if (gy >= HID) anim(260, (k, g) => { // 新加的那一行红白交替闪几下
-    if (Math.floor(k * 6) % 2 === 0) { g.fillStyle = k < .5 ? '#ff5a4a' : '#fff'; g.globalAlpha = .75 * (1 - k); row.forEach((t, x) => { if (t) g.fillRect(r.left + x * c, sy, c, c); }); g.globalAlpha = 1; }
-  });
-  row.forEach((t, x) => { if (t && gy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + .5) * c, y: sy, vx: rand(-60, 60), vy: rand(-150, -50), g: 600, max: rand(180, 300), s: u, c: i ? '#7d8398' : '#ff5a4a' }); });
-  shake(3, 150);
-  banner('#banner', [['+1 ROW', 't-combo']], .45);
-}
-function fxMorph(){
+function fxMagnet(cs, moved){
   const r = bRect(), c = CELL, u = px(c);
-  for (const [cx, cy] of SHAPES.V[cur.r]) if (cur.y + cy >= HID) addP({ x: r.left + (cur.x + cx + .5) * c, y: r.top + (cur.y + cy - HID + .5) * c, vx: rand(-90, 90), vy: rand(-90, 90), max: rand(120, 200), s: u, c: '#b9f8d8' });
+  // 磁力线：每个磁铁格向左右各 2 格闪几下蓝/红虚线
+  const rows = [...new Set(cs.filter(([, y]) => y >= HID).map(([, y]) => y))];
+  const xs = cs.map(([x]) => x), xl = Math.min(...xs), xr = Math.max(...xs);
+  anim(220, (k, g) => {
+    g.globalAlpha = 1 - k;
+    for (const y of rows) {
+      const sy = r.top + (y - HID) * c + c / 2 - u / 2, ph = Math.floor(k * 8);
+      g.fillStyle = '#2f8cff'; for (let i = 0; i < 2 * c; i += 2 * u) if ((i / u + ph) % 4 < 2) g.fillRect(r.left + xl * c - i - u, sy, u, u);
+      g.fillStyle = '#ff3b4f'; for (let i = 0; i < 2 * c; i += 2 * u) if ((i / u + ph) % 4 < 2) g.fillRect(r.left + (xr + 1) * c + i, sy, u, u);
+    }
+    g.globalAlpha = 1;
+  });
+  // 被吸过来的方块：从原位滑到新位，后面拖几颗像素
+  for (const [from, to, y, t] of moved) {
+    if (y < HID) continue;
+    const sy = r.top + (y - HID) * c, x0 = r.left + from * c, x1 = r.left + to * c;
+    anim(120, (k, g) => { g.fillStyle = '#070910'; g.fillRect(x1, sy, c, c); g.drawImage(blockCache[t], x0 + (x1 - x0) * k, sy, c, c); });
+    for (let i = 0; i < 5; i++) addP({ x: x0 + c / 2, y: sy + rand(0, c), vx: (x1 - x0) * rand(3, 7), vy: rand(-30, 30), max: rand(140, 240), s: u, c: to > from ? '#2f8cff' : '#ff3b4f' });
+  }
+  if (moved.length) banner('#banner', [['PULL!', 't-clear']], .35);
+}
+function fxFrozen(iced){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c;
+  const ys = iced.filter(y => y >= HID).map(y => r.top + (y - HID) * c);
+  anim(300, (k, g) => { g.globalAlpha = .7 * (1 - k); g.fillStyle = k < .3 ? '#fff' : '#9fe3ff'; for (const sy of ys) g.fillRect(r.left, sy, W, c); g.globalAlpha = 1; });
+  for (const sy of ys) for (let i = 0; i < 14; i++) addP({ x: r.left + rand(0, W), y: sy + rand(0, c), vx: rand(-40, 40), vy: rand(-90, -20), max: rand(260, 460), s: u, c: i % 2 ? '#fff' : '#9fe3ff' });
+  banner('#banner', [['FROZEN', 't-b2b']], .5);
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
 }
-function fxClear(snap, n, b2bLv, comboN, pc){
+function fxClear(snap, n, b2bLv, comboN, pc, iceN = 0, total = n){
   const r = bRect(), c = CELL, W = COLS * c, u = px(c);
   const rows = snap.filter(s => s.y >= HID).map(s => ({ sy: r.top + (s.y - HID) * c, cells: s.cells }));
   const cx = r.left + W / 2;
@@ -1148,6 +1140,10 @@ function fxClear(snap, n, b2bLv, comboN, pc){
   if (n === 4) { lines_.push(['TETRIS!', 't-tetris'], [pixelTextImg('肥玲你真棒！', COLS * c), 't-cn']); if (b2bLv > 0) lines_.push([b2bLv === 1 ? 'B2B' : 'B2B ×' + b2bLv, 't-b2b']); }
   else if (n === 3) lines_.push(['TRIPLE', 't-clear']);
   else if (n === 2) lines_.push(['DOUBLE', 't-clear']);
+  if (iceN) { // 冰封行一起碎掉：冰蓝碎片 + 提示总行数和分数翻倍
+    lines_.push(['ICE BREAK', 't-b2b'], [total + ' LINES  ×2', 't-combo']);
+    for (const row of rows) if (row.cells.includes('C')) for (let i = 0; i < 18; i++) addP({ x: r.left + rand(0, W), y: row.sy + rand(0, c), vx: rand(-260, 260), vy: rand(-320, -60), g: 800, max: rand(300, 560), s: u * (i % 3 === 0 ? 2 : 1), c: i % 2 ? '#fff' : '#9fe3ff', delay: 60 });
+  }
   if (comboN >= 2) { lines_.push(['COMBO ×' + comboN, 't-combo']); classPulse(wrapEl, 'combo', 240); for (let i = 0; i < Math.min(comboN, 8) * 2; i++) addP({ x: rand(r.left, r.right), y: rand(r.top, r.bottom), vx: 0, vy: -60, max: 220, s: u, c: '#f2c14e', delay: 60 }); }
   if (pc) {
     lines_.length = 0; lines_.push(['PERFECT<br>CLEAR', 't-pc']);
