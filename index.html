@@ -283,7 +283,8 @@ const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
   D:'#eef2ff', D2:'#63dcff', B:'#33353e', B2:'#646878', M:'#ee4f9c', M2:'#ffa9d4',
-  N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
+  N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
+  V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -309,9 +310,18 @@ SHAPES.B = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'B' || t === 'M' || t === 'N';
-// 每一袋（7 块）额外混进一块特殊块的概率；短条 .075 ≈ 全部方块的 1%
-const DOT_RATE = .26, BOMB_RATE = .17, MINI_RATE = .075, MID_RATE = .17; // 每一袋 7 块里额外混进一块的概率
+// V 五格变形块：五种形态（十字、T、U、拐角、Z），每按一次旋转随机换成另一种
+SHAPES.V = [
+  [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
+  [[0, 0], [1, 0], [2, 0], [1, 1], [1, 2]],
+  [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+  [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
+  [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]],
+];
+const isSpecial = t => t === 'D' || t === 'B' || t === 'M' || t === 'N' || t === 'V';
+// 各特殊块占全部方块的比例。每袋 7 块最多混进 1 块特殊块，所以每袋的概率 = 占比 × (7 + 每袋特殊块的期望个数)
+const SPECIAL_SHARE = [['D', .04], ['N', .02], ['B', .02], ['M', .01], ['V', .015]];
+const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0), PER_BAG = 7 / (1 - SHARE_SUM); // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -546,7 +556,8 @@ function fillQueue(){
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
     const sp = rng(), at = Math.floor(rng() * 8);
-    if (sp < DOT_RATE) bag.splice(at, 0, 'D'); else if (sp < DOT_RATE + BOMB_RATE) bag.splice(at, 0, 'B'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE) bag.splice(at, 0, 'M'); else if (sp < DOT_RATE + BOMB_RATE + MINI_RATE + MID_RATE) bag.splice(at, 0, 'N');
+    let acc = 0;
+    for (const [t, f] of SPECIAL_SHARE) { acc += f * PER_BAG; if (sp < acc) { bag.splice(at, 0, t); break; } }
     queue.push(...bag);
   }
 }
@@ -587,8 +598,20 @@ function stepDown(){
   if (cur.y > lowestY) { lowestY = cur.y; lockResets = 0; lockTimer = 0; }
   return true;
 }
+// 变形块：随机换成另一种形态（放不下的形态跳过；这里用 Math.random，不占用决定方块顺序的随机源）
+function morph(){
+  const forms = [0, 1, 2, 3, 4].filter(f => f !== cur.r).sort(() => Math.random() - .5);
+  for (const to of forms) for (const [kx, ky] of [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0]]) {
+    if (collide('V', to, cur.x + kx, cur.y - ky)) continue;
+    cur.x += kx; cur.y -= ky; cur.r = to;
+    if (cur.y > lowestY) { lowestY = cur.y; lockResets = 0; lockTimer = 0; }
+    noteGroundReset(); fxMorph(); return true;
+  }
+  return false;
+}
 function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'B') return false;
+  if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
   const kicks = cur.t === 'M' || cur.t === 'N' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
@@ -989,6 +1012,10 @@ function fxGarbage(gy, row){
   row.forEach((t, x) => { if (t && gy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + .5) * c, y: sy, vx: rand(-60, 60), vy: rand(-150, -50), g: 600, max: rand(180, 300), s: u, c: i ? '#7d8398' : '#ff5a4a' }); });
   shake(3, 150);
   banner('#banner', [['+1 ROW', 't-combo']], .45);
+}
+function fxMorph(){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [cx, cy] of SHAPES.V[cur.r]) if (cur.y + cy >= HID) addP({ x: r.left + (cur.x + cx + .5) * c, y: r.top + (cur.y + cy - HID + .5) * c, vx: rand(-90, 90), vy: rand(-90, 90), max: rand(120, 200), s: u, c: '#b9f8d8' });
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
