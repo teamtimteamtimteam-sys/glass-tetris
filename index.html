@@ -314,18 +314,20 @@ SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0],
 const cellKey = (t, i) => t === 'M' ? (i ? 'MR' : 'MB') : t;
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-// V 五格变形块：五种形态（十字、T、U、拐角、Z），每按一次旋转随机换成另一种
+// V 四格变形块：五种形态（T、L、J、S、Z），每按一次旋转随机换成另一种
 SHAPES.V = [
-  [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]],
-  [[0, 0], [1, 0], [2, 0], [1, 1], [1, 2]],
-  [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
-  [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
-  [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]],
+  [[1, 0], [0, 1], [1, 1], [2, 1]],
+  [[2, 0], [0, 1], [1, 1], [2, 1]],
+  [[0, 0], [0, 1], [1, 1], [2, 1]],
+  [[1, 0], [2, 0], [0, 1], [1, 1]],
+  [[0, 0], [1, 0], [1, 1], [2, 1]],
 ];
 const isSpecial = t => t === 'D' || t === 'F' || t === 'M' || t === 'N' || t === 'V' || t === 'C';
-// 各特殊块占全部方块的比例。每袋 7 块最多混进 1 块特殊块，所以每袋的概率 = 占比 × (7 + 每袋特殊块的期望个数)
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .015], ['M', .015], ['V', .01], ['C', .02]];
-const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0), PER_BAG = 7 / (1 - SHARE_SUM); // 每一袋 7 块里额外混进一块的概率
+// 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
+// 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .015], ['M', .015], ['V', .02], ['C', .02]];
+const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
+const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -561,9 +563,12 @@ function fillQueue(){
     const bag = TYPES.split('');
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
-    const sp = rng(), at = Math.floor(rng() * 8);
-    let acc = 0;
-    for (const [t, f] of SPECIAL_SHARE) { acc += f * PER_BAG; if (sp < acc) { bag.splice(at, 0, t); break; } }
+    for (let k = 0; k < SP_TRIES; k++) {
+      const hit = rng() < SP_TRY_P, pick = rng() * SHARE_SUM, at = Math.floor(rng() * (bag.length + 1));
+      if (!hit) continue;
+      let acc = 0;
+      for (const [t, f] of SPECIAL_SHARE) { acc += f; if (pick < acc) { bag.splice(at, 0, t); break; } }
+    }
     queue.push(...bag);
   }
 }
@@ -1042,6 +1047,19 @@ function fxFrozen(iced){
   anim(300, (k, g) => { g.globalAlpha = .7 * (1 - k); g.fillStyle = k < .3 ? '#fff' : '#9fe3ff'; for (const sy of ys) g.fillRect(r.left, sy, W, c); g.globalAlpha = 1; });
   for (const sy of ys) for (let i = 0; i < 14; i++) addP({ x: r.left + rand(0, W), y: sy + rand(0, c), vx: rand(-40, 40), vy: rand(-90, -20), max: rand(260, 460), s: u, c: i % 2 ? '#fff' : '#9fe3ff' });
   banner('#banner', [['FROZEN', 't-b2b']], .5);
+}
+function fxGarbage(gy, row){
+  const r = bRect(), c = CELL, u = px(c), sy = r.top + (gy - HID) * c;
+  if (gy >= HID) anim(260, (k, g) => { // 新加的那一行红白交替闪几下
+    if (Math.floor(k * 6) % 2 === 0) { g.fillStyle = k < .5 ? '#ff5a4a' : '#fff'; g.globalAlpha = .75 * (1 - k); row.forEach((t, x) => { if (t) g.fillRect(r.left + x * c, sy, c, c); }); g.globalAlpha = 1; }
+  });
+  row.forEach((t, x) => { if (t && gy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + .5) * c, y: sy, vx: rand(-60, 60), vy: rand(-150, -50), g: 600, max: rand(180, 300), s: u, c: i ? '#7d8398' : '#ff5a4a' }); });
+  shake(3, 150);
+  banner('#banner', [['+1 ROW', 't-combo']], .45);
+}
+function fxMorph(){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [cx, cy] of SHAPES.V[cur.r]) if (cur.y + cy >= HID) addP({ x: r.left + (cur.x + cx + .5) * c, y: r.top + (cur.y + cy - HID + .5) * c, vx: rand(-90, 90), vy: rand(-90, 90), max: rand(120, 200), s: u, c: '#b9f8d8' });
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
