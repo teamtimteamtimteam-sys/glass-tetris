@@ -85,8 +85,13 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
 .t-max{font-size:10px;color:#ff6a3c;margin-top:8px}
 
 /* ---------- 按键 ---------- */
-#controls{flex:none;height:var(--ctrl-h);display:grid;grid-template-columns:44% 28% 28%;margin:8px -10px 0}
+/* 左：旋转（占两行）；右：上排 ↓ 加速，下排 ← →。↓ 放在右手侧，离旋转远 */
+#controls{flex:none;height:var(--ctrl-h);display:grid;grid-template-columns:44% 28% 28%;grid-template-rows:38% 62%;margin:8px -10px 0}
 .zone{display:flex;align-items:center;justify-content:center;touch-action:none}
+.zone[data-z=rot]{grid-row:1 / 3;align-items:flex-end;padding-bottom:calc(var(--ctrl-h) * .62 * .15)}
+.zone[data-z=down]{grid-column:2 / 4;grid-row:1;align-items:flex-end;padding-bottom:4px}
+.zone[data-z=left],.zone[data-z=right]{grid-row:2}
+.zone[data-z=down] .key{width:min(194px,88%);height:min(50px,86%)}
 .key{display:grid;place-items:center;background:#1a1f35;border:3px solid var(--line);box-shadow:4px 4px 0 0 #000;pointer-events:none}
 .zone[data-z=rot] .key{width:min(132px,80%);height:min(84px,70%)}
 .zone[data-z=left] .key,.zone[data-z=right] .key{width:min(92px,84%);height:min(84px,70%)}
@@ -175,6 +180,9 @@ h2 .cn{font-family:var(--cjk);font-weight:900;font-size:22px}
   <div id="controls" class="ui">
     <div class="zone" data-z="rot" aria-label="旋转"><div class="key">
       <svg viewBox="0 0 12 12"><g fill="#fff"><rect x="4" y="1" width="3" height="1"/><rect x="7" y="0" width="1" height="3"/><rect x="8" y="1" width="1" height="1"/><rect x="2" y="2" width="2" height="1"/><rect x="1" y="3" width="1" height="6"/><rect x="2" y="9" width="2" height="1"/><rect x="4" y="10" width="4" height="1"/><rect x="8" y="9" width="2" height="1"/><rect x="10" y="4" width="1" height="5"/></g></svg>
+    </div></div>
+    <div class="zone" data-z="down" aria-label="加速下落"><div class="key">
+      <svg viewBox="0 0 9 9"><g fill="#fff"><rect x="1" y="3" width="7" height="1"/><rect x="2" y="4" width="5" height="1"/><rect x="3" y="5" width="3" height="1"/><rect x="4" y="6" width="1" height="1"/></g></svg>
     </div></div>
     <div class="zone" data-z="left" aria-label="左移"><div class="key">
       <svg viewBox="0 0 9 9"><g fill="#fff"><rect x="5" y="1" width="1" height="7"/><rect x="4" y="2" width="1" height="5"/><rect x="3" y="3" width="1" height="3"/><rect x="2" y="4" width="1" height="1"/></g></svg>
@@ -932,7 +940,7 @@ function appHeight(){
   if (navigator.standalone && innerWidth < innerHeight && screen.height > h && screen.width === innerWidth) h = screen.height;
   return h;
 }
-const CTRL_H = { S: 128, M: 152, L: 180 };
+const CTRL_H = { S: 150, M: 176, L: 204 };
 function layout(){
   const ah = appHeight();
   document.documentElement.style.setProperty('--app-h', ah + 'px');
@@ -978,13 +986,15 @@ function zoneDown(id, z){
   zonesDown.set(id, z); z.classList.add('on');
   const k = z.dataset.z;
   if (k === 'rot') { if (canAct() && rotateCW()) Sfx.rotate(); }
+  else if (k === 'down') { input.soft = true; dropAcc = softMs(); } // 按下立刻落一格，按住持续加速
   else pressMove(k === 'left' ? -1 : 1);
 }
 function zoneUp(id){
   const z = zonesDown.get(id); if (!z) return;
   zonesDown.delete(id); z.classList.remove('on');
   const k = z.dataset.z;
-  if (k !== 'rot') releaseMove(k === 'left' ? -1 : 1);
+  if (k === 'down') input.soft = false;
+  else if (k !== 'rot') releaseMove(k === 'left' ? -1 : 1);
 }
 document.querySelectorAll('.zone').forEach(z => {
   z.addEventListener('pointerdown', e => {
@@ -994,9 +1004,10 @@ document.querySelectorAll('.zone').forEach(z => {
   });
   // 左右键之间滑动可直接换方向
   z.addEventListener('pointermove', e => {
-    const cz = zonesDown.get(e.pointerId); if (!cz || cz.dataset.z === 'rot') return;
+    const LR = z => z && (z.dataset.z === 'left' || z.dataset.z === 'right');
+    const cz = zonesDown.get(e.pointerId); if (!LR(cz)) return;
     const el = document.elementFromPoint(e.clientX, e.clientY), nz = el && el.closest && el.closest('.zone');
-    if (nz && nz !== cz && nz.dataset.z !== 'rot') { zoneUp(e.pointerId); zoneDown(e.pointerId, nz); }
+    if (nz && nz !== cz && LR(nz)) { zoneUp(e.pointerId); zoneDown(e.pointerId, nz); }
   });
   const up = e => zoneUp(e.pointerId);
   z.addEventListener('pointerup', up); z.addEventListener('pointercancel', up); z.addEventListener('lostpointercapture', up);
