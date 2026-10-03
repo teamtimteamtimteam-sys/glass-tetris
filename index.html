@@ -282,9 +282,9 @@ const LINE_PTS = [0, 100, 300, 500, 800];
 const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
-  D:'#eef2ff', D2:'#63dcff', B:'#33353e', B2:'#646878', M:'#ee4f9c', M2:'#ffa9d4',
+  D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', M:'#ee4f9c', M2:'#ffa9d4',
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
-  V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，B = 闪烁炸弹，M = 闪烁短条；带 2 的是闪烁的第二帧
+  V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -303,9 +303,9 @@ for (const t of TYPES) {
 const KJ = { '01':[[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]], '12':[[0,0],[1,0],[1,-1],[0,2],[1,2]], '23':[[0,0],[1,0],[1,1],[0,-2],[1,-2]], '30':[[0,0],[-1,0],[-1,-1],[0,2],[-1,2]] };
 const KI = { '01':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '12':[[0,0],[-1,0],[2,0],[-1,2],[2,-1]], '23':[[0,0],[2,0],[-1,0],[2,1],[-1,-2]], '30':[[0,0],[1,0],[-2,0],[1,-2],[-2,1]] };
 
-// 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），B 2×2 炸弹（落地炸掉周围一圈）
+// 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），F 2×2 火焰方块（落地后烧光它经过的两列和左右各一列）
 SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
-SHAPES.B = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
+SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // M 两格短条：能横竖转；落下时只要消了行（1 或 2 行）就清空整个棋盘，按四消计分
 SHAPES.M = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
@@ -318,9 +318,9 @@ SHAPES.V = [
   [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
   [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]],
 ];
-const isSpecial = t => t === 'D' || t === 'B' || t === 'M' || t === 'N' || t === 'V';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'M' || t === 'N' || t === 'V';
 // 各特殊块占全部方块的比例。每袋 7 块最多混进 1 块特殊块，所以每袋的概率 = 占比 × (7 + 每袋特殊块的期望个数)
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['B', .03], ['M', .015], ['V', .01]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['M', .015], ['V', .01]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0), PER_BAG = 7 / (1 - SHARE_SUM); // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
@@ -446,7 +446,12 @@ const Sfx = {
     [96, 100, 103, 108, 103, 108, 112, 115].forEach((m, i) => T(m, .06, 'square', .04, .5 + i * .06));    // 高音闪烁收尾
   },
   garbage(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(196, .12, 'square', .07, now); Au.tone(147, .2, 'square', .07, now + .11); Au.noise(.1, .1, now, 'lowpass', 700); },
-  bomb(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(140, .35, 'triangle', .5, now, .25); Au.noise(.32, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); [0, .05, .11].forEach(d => Au.tone(900 - d * 4000, .04, 'square', .05, now + .06 + d)); },
+  fire(){ // 火焰：一声"呼"的上扬风声 + 低频轰一下 + 几下噼啪
+    if (!this.ok()) return; const now = Au.ctx.currentTime;
+    Au.noise(.55, .28, now, 'bandpass', 900); Au.noise(.4, .14, now + .05, 'highpass', 3500);
+    Au.tone(90, .4, 'triangle', .4, now, 2.2); Au.tone(160, .5, 'sawtooth', .05, now, 3);
+    [.08, .15, .2, .28, .33, .41].forEach((d, i) => Au.noise(.025, .12, now + d, 'highpass', 5000 + i * 400));
+  },
   sink(){ if (this.ok()) Au.tone(1500, .16, 'square', .05, 0, .25); },
   hard(){ if (this.ok()) { Au.tone(110, .09, 'triangle', .35, 0, .45); Au.noise(.05, .12, 0, 'lowpass', 900); } },
   clear(n, combo){
@@ -575,14 +580,14 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'B' || t === 'M' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'M' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'M' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
 }
-// —— 第 2 级专属：红色 Z 块占全部方块的 80% ——
+// —— 第 2 级专属：红色 Z 块占全部方块的 40% ——
 // 只改马上要用到的前 3 块（就是 NEXT 里显示的那 3 块），并记下原来是什么；一离开第 2 级就原样换回去，其他级别的概率不受影响。
-const RED_LEVEL = 2, RED_SHARE = .8;
+const RED_LEVEL = 2, RED_SHARE = .4;
 // 正常情况下 Z 本来就占 (1 - 特殊块占比) / 7，所以「强行换成 Z」的概率要比 80% 略低，合起来才正好是 80%
 const RED_FORCE = (RED_SHARE - (1 - SHARE_SUM) / 7) / (1 - (1 - SHARE_SUM) / 7);
 let qOrig = [];
@@ -631,7 +636,7 @@ function morph(){
   return false;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'B') return false;
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
   if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
   const kicks = cur.t === 'M' || cur.t === 'N' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
@@ -655,16 +660,17 @@ function doHold(){
 function ghostY(){ let y = cur.y; while (!collide(cur.t, cur.r, cur.x, y + 1)) y++; return y; }
 // 小点最终落到哪：这一列里最靠下的空格（可以在别的方块下面）
 function dotTargetY(){ for (let y = TROWS - 1; y > cur.y; y--) if (!board[y][cur.x]) return y; return cur.y; }
-function explodeBomb(){
-  const bx = cur.x, by = cur.y, hit = [];
-  for (let y = by - 1; y <= by + 2; y++) for (let x = bx - 1; x <= bx + 2; x++) {
-    if (x < 0 || x >= COLS || y < 0 || y >= TROWS || !board[y][x]) continue;
-    hit.push([x, y, board[y][x]]); board[y][x] = null;
+// 火焰方块落地：它一路下来的两列，加上左右各一列，这 4 列里已经落地的方块全部烧掉；火焰方块自己也消失
+function burnFire(){
+  const bx = cur.x, by = cur.y, hit = [], cols = [];
+  for (let x = bx - 1; x <= bx + 2; x++) {
+    if (x < 0 || x >= COLS) continue;
+    cols.push(x);
+    for (let y = 0; y < TROWS; y++) if (board[y][x]) { hit.push([x, y, board[y][x]]); board[y][x] = null; }
   }
   score += hit.length * 10 * level;
-  fxBomb(bx, by, hit); Sfx.bomb(); Hap.fire(2);
+  fxFire(bx, by, cols, hit); Sfx.fire(); Hap.fire(2);
   cur = null;
-  if (by + 1 < HID) { topOut(); return; }
   spawn();
 }
 // 在当前最高的方块上面加一行，随机缺 2～6 格；顶到天花板放不下就返回 false
@@ -687,7 +693,7 @@ function hardDrop(){
   lock();
 }
 function lock(){
-  if (cur.t === 'B') { explodeBomb(); return; }
+  if (cur.t === 'F') { burnFire(); return; }
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
@@ -878,7 +884,8 @@ function render(){
       // 落地后锁定前：方块轻微变暗闪一下提示
       const k = !canMove(0, 1) ? Math.floor(lockTimer / 60) % 2 : 0;
       ctx.globalAlpha = k ? .72 : 1;
-      const skin = isSpecial(cur.t) && Math.floor(performance.now() / 110) % 2 ? cur.t + '2' : cur.t; // 特殊方块闪烁
+      const nowMs = performance.now();
+      const skin = cur.t === 'F' ? ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3] : isSpecial(cur.t) && Math.floor(nowMs / 110) % 2 ? cur.t + '2' : cur.t; // 特殊方块闪烁；火焰方块三帧火色轮换
       for (const [cx, cy] of cs) blit(blockCache[skin], cur.x + cx, cur.y + cy);
       ctx.globalAlpha = 1;
     }
@@ -957,26 +964,32 @@ function fxDotSink(x, y0, y1){
   const ex = r.left + (x + .5) * c, ey = r.top + (y1 - HID + .5) * c;
   for (let i = 0; i < 10; i++) addP({ x: ex, y: ey, vx: rand(-130, 130), vy: rand(-130, 130), max: rand(160, 280), s: u, c: i % 2 ? '#63dcff' : '#fff', delay: 60 });
 }
-function fxBomb(bx, by, hit){
-  const r = bRect(), c = CELL, u = px(c);
-  const cx = r.left + (bx + 1) * c, cy = r.top + (by + 1 - HID) * c;
-  anim(260, (k, g) => {
-    // 4×4 范围白闪 → 橙 → 消失
-    if (k < .5) { g.globalAlpha = 1 - k * 2; g.fillStyle = k < .2 ? '#fff' : '#ffb347'; g.fillRect(cx - 2 * c, cy - 2 * c, 4 * c, 4 * c); g.globalAlpha = 1; }
-    // 方形像素冲击波
-    const rad = Math.round((c + k * 3.2 * c) / u) * u, th = Math.max(u, Math.round((1 - k) * 3) * u);
-    g.globalAlpha = 1 - k; g.fillStyle = '#ffd23f';
-    for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
+function fxFire(bx, by, cols, hit){
+  const r = bRect(), c = CELL, u = px(c), FC = ['#fff', '#ffd23f', '#ff8a2c', '#e2452e'];
+  const x0 = r.left + cols[0] * c, w = cols.length * c, H = ROWS * c, bottom = r.top + H;
+  // 1) 火柱：这几列从下往上烧，像素火苗一格一格跳，越往上越稀、越红
+  anim(520, (k, g) => {
+    const reach = Math.min(1, k * 2.2), fade = k < .55 ? 1 : 1 - (k - .55) / .45, step = 2 * u, fr = Math.floor(k * 26);
+    for (let yy = 0; yy < H * reach; yy += step) {
+      const h = yy / H;
+      for (let xx = 0; xx < w; xx += step) {
+        const n = ((xx / step * 7 + yy / step * 13 + fr * 5) % 11) / 11;   // 便宜的"随机"
+        if (n < h * .85) continue;
+        g.fillStyle = FC[Math.min(3, Math.floor(h * 2.4 + n * 1.6))];
+        g.globalAlpha = fade * (.9 - h * .35);
+        g.fillRect(x0 + xx, bottom - yy - step, step, step);
+      }
+    }
     g.globalAlpha = 1;
   });
-  const fire = ['#fff', '#ffd23f', '#ff8a3c', '#e2452e'];
-  for (let i = 0; i < 46; i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 520); addP({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, g: 500, max: rand(220, 460), s: u * (i % 4 === 0 ? 2 : 1), c: fire[i % 4] }); }
-  for (const [x, y, t] of hit) for (let i = 0; i < 4; i++) { // 被炸掉的方块碎成自己颜色的像素
-    const px0 = r.left + (x + .5) * c, py0 = r.top + (y - HID + .5) * c, a = Math.atan2(py0 - cy, px0 - cx) + rand(-.5, .5), sp = rand(160, 420);
-    addP({ x: px0, y: py0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, g: 800, max: rand(300, 520), s: u * (i === 0 ? 2 : 1), c: COLORS[t] || '#fff', delay: 30 });
-  }
-  shake(6, 220);
-  if (hit.length) banner('#banner', [['BOOM!', 't-clear'], ['-' + hit.length + ' BLOCKS', 't-combo']], .45);
+  // 2) 被烧掉的方块先闪成橙色，再化成往上飘的火星
+  const cells = hit.filter(([, y]) => y >= HID).map(([x, y]) => [r.left + x * c, r.top + (y - HID) * c]);
+  anim(160, (k, g) => { g.globalAlpha = 1 - k; g.fillStyle = k < .4 ? '#fff' : '#ff8a2c'; for (const [X, Y] of cells) g.fillRect(X, Y, c, c); g.globalAlpha = 1; });
+  for (const [X, Y] of cells) for (let i = 0; i < 3; i++) addP({ x: X + rand(0, c), y: Y + rand(0, c), vx: rand(-40, 40), vy: rand(-420, -140), g: -120, max: rand(320, 620), s: u * (i === 0 ? 2 : 1), c: FC[1 + (i % 3)], delay: rand(40, 160) });
+  // 3) 整条火柱里再飘一层火星
+  for (let i = 0; i < 60; i++) addP({ x: x0 + rand(0, w), y: bottom - rand(0, H * .5), vx: rand(-30, 30), vy: rand(-520, -220), g: -80, max: rand(360, 700), s: u * (i % 4 === 0 ? 2 : 1), c: FC[i % 4], delay: rand(0, 260) });
+  shake(5, 260);
+  banner('#banner', hit.length ? [['BURN!', 't-clear'], ['-' + hit.length + ' BLOCKS', 't-combo']] : [['BURN!', 't-clear']], .5);
 }
 function fxSuper(snap, wiped, comboN){
   const r = bRect(), c = CELL, u = px(c), W = COLS * c, H = ROWS * c, cx = r.left + W / 2;
@@ -1188,7 +1201,16 @@ function fxLevelUp(){
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
 }
+let emberT = 0;
 function updateFx(dt){
+  if (cur && cur.t === 'F' && state === 'play') { // 火焰方块下落时头顶冒火星
+    emberT += dt;
+    while (emberT > 45) {
+      emberT -= 45;
+      const r = bRect(), c = CELL, u = px(c);
+      if (cur.y >= HID - 1) addP({ x: r.left + (cur.x + rand(0, 2)) * c, y: r.top + (cur.y - HID) * c + rand(0, c * .5), vx: rand(-25, 25), vy: rand(-170, -70), g: -60, max: rand(200, 380), s: u, c: ['#ffd23f', '#ff8a2c', '#e2452e'][Math.floor(rand(0, 3))] });
+    }
+  }
   const s = dt / 1000;
   for (let i = P.length - 1; i >= 0; i--) {
     const p = P[i];
