@@ -316,7 +316,7 @@ const fmtTimeFine = ms => { const s = ms / 1000; return `${Math.floor(s / 60)}:$
 function fmtDate(t){ const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 
 /* ================= 像素方块贴图 ================= */
-let CELL = 24, CD = 72, blockCache = {}, ghostCache = {}, smallCache = {};
+let CELL = 0, CD = 0, blockCache = {}, ghostCache = {}, smallCache = {};
 function makeBlock(color, D){
   const c = document.createElement('canvas'); c.width = c.height = D;
   const g = c.getContext('2d'), u = Math.max(1, Math.round(D / 10));
@@ -942,7 +942,8 @@ function layout(){
   const m = mainEl.getBoundingClientRect();
   const sides = 52 * 2 + 9 * 2, frame = 8 + 10; // 边框 + 外框阴影余量
   const cell = Math.max(10, Math.floor(Math.min((m.width - sides - frame) / COLS, (m.height - frame) / ROWS)));
-  if (cell !== CELL || !cv.width) {
+  // 按实际画布尺寸判断，不和初始值比：初始值碰巧等于算出来的格子大小时，画布会停在默认 300×150
+  if (cell !== CELL || cv.width !== Math.round(cell * DPR) * COLS) {
     CELL = cell; CD = Math.round(CELL * DPR);
     cv.width = CD * COLS; cv.height = CD * ROWS;
     cv.style.width = CELL * COLS + 'px'; cv.style.height = CELL * ROWS + 'px';
