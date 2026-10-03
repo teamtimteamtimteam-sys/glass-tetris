@@ -580,9 +580,27 @@ function placePiece(t){
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
 }
+// —— 第 2 级专属：红色 Z 块占全部方块的 80% ——
+// 只改马上要用到的前 3 块（就是 NEXT 里显示的那 3 块），并记下原来是什么；一离开第 2 级就原样换回去，其他级别的概率不受影响。
+const RED_LEVEL = 2, RED_SHARE = .8;
+// 正常情况下 Z 本来就占 (1 - 特殊块占比) / 7，所以「强行换成 Z」的概率要比 80% 略低，合起来才正好是 80%
+const RED_FORCE = (RED_SHARE - (1 - SHARE_SUM) / 7) / (1 - (1 - SHARE_SUM) / 7);
+let qOrig = [];
+function syncRedLevel(){
+  if (level === RED_LEVEL) {
+    for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (rng() < RED_FORCE) queue[i] = 'Z'; }
+  } else {
+    for (let i = 0; i < qOrig.length; i++) if (qOrig[i] != null) { queue[i] = qOrig[i]; qOrig[i] = null; }
+  }
+}
+function takeNext(){
+  fillQueue(); syncRedLevel();
+  const t = queue.shift(); qOrig.shift();
+  syncRedLevel();
+  return t;
+}
 function spawn(){
-  fillQueue();
-  const t = queue.shift();
+  const t = takeNext();
   holdUsed = false;
   placePiece(t);
   drawSide();
@@ -630,7 +648,7 @@ function doHold(){
   if (!cur || holdUsed) return false;
   const t = cur.t;
   if (hold) { const h = hold; hold = t; placePiece(h); }
-  else { hold = t; fillQueue(); placePiece(queue.shift()); }
+  else { hold = t; placePiece(takeNext()); }
   holdUsed = true; drawSide(); Sfx.hold(); fxHold();
   return true;
 }
@@ -719,7 +737,7 @@ function startGame(m){
   Au.init();
   mode = m || mode;
   rng = mode === 'daily' ? mulberry32(dailySeed(todayKey())) : Math.random;
-  board = newBoard(); queue = []; hold = null; holdUsed = false;
+  board = newBoard(); queue = []; qOrig = []; hold = null; holdUsed = false;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
   clearInput(); P.length = 0; A.length = 0;
