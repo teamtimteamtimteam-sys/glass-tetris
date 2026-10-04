@@ -296,6 +296,9 @@ const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
   D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', C:'#9fe3ff', C2:'#eafaff',
+  H:'#c79a5e', HS:'#ffe9b0', HS2:'#ffffff',               // 补洞块：沙色身体 + 奶油色的「塞子」格
+  K:'#a99be0', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：淡紫身体 + 透明玻璃格
+  U:'#566074', US:'#a9b3c6', US2:'#e2e8f2', UC:'#98a2b6', // 钢铁块：铁灰身体 + 钢格（US 完好，UC 已裂）
   Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
   V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
@@ -323,7 +326,19 @@ SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // C 三格冰晶块：中间一格、上面一格、左边一格；含有冰晶的行填满了也先不消，等下一次消行时一起结算
 SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0], [0, 0]], [[0, 0], [1, 1], [1, 0]]];
 // 一块方块里每一格落到棋盘上用哪种贴图（目前都是自己的类型；留着这个口子，以后做多色方块用）
-const cellKey = (t, i) => t === 'Y' ? 'Y3' : t;
+// 下面三种方块各有一个「特殊格」，永远排在第 0 个
+// H 补洞块：T 形，突出的那一格是塞子；落地时塞子正下方这一列如果有空洞，塞子脱离、掉进最底下的空位
+SHAPES.H = [[[1, 2], [0, 1], [1, 1], [2, 1]], [[0, 1], [1, 0], [1, 1], [1, 2]], [[1, 0], [0, 1], [1, 1], [2, 1]], [[2, 1], [1, 0], [1, 1], [1, 2]]];
+// K 易碎块：L 形，顶端那一格是玻璃；之后有方块直接压在玻璃格上，玻璃碎掉，那块方块继续往下落
+SHAPES.K = [[[2, 0], [0, 1], [1, 1], [2, 1]], [[2, 2], [1, 0], [1, 1], [1, 2]], [[0, 2], [2, 1], [1, 1], [0, 1]], [[0, 0], [1, 2], [1, 1], [1, 0]]];
+// U 钢铁块：三格横条，中间是钢格；钢格所在行被消掉时它留在原位（裂开），第二次才真正消掉
+SHAPES.U = [[[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]], [[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]]];
+const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U';
+const cellKey = (t, i) => t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 ? t + 'S' : t) : t;
+// 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
+const fallSkin = (t, i, blink) => HAS_CORE(t) ? (i === 0 ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+// 贴图上的花纹由格子类型决定
+const markOf = k => k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
@@ -336,10 +351,10 @@ SHAPES.V = [
   [[1, 0], [2, 0], [0, 1], [1, 1]],
   [[0, 0], [1, 0], [1, 1], [2, 1]],
 ];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'V' || t === 'C' || t === 'Y';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'V' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['V', .02], ['C', .02], ['Y', .02]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['V', .02], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -383,6 +398,16 @@ function makeBlock(color, D, mark){
   const c = document.createElement('canvas'); c.width = c.height = D;
   const g = c.getContext('2d'), u = Math.max(1, Math.round(D / 10));
   const ice = mark === 'C', leaf = mark === 'Y';
+  if (mark === 'glass') { // 玻璃：中间透明能看到底下，只有亮边、淡淡的底色和两道斜向反光
+    g.fillStyle = color; g.fillRect(0, 0, D, u); g.fillRect(0, 0, u, D);
+    g.fillStyle = shade(color, -.3); g.fillRect(0, D - u, D, u); g.fillRect(D - u, 0, u, D);
+    g.globalAlpha = .22; g.fillStyle = color; g.fillRect(u, u, D - 2 * u, D - 2 * u); g.globalAlpha = 1;
+    g.fillStyle = '#fff';
+    for (let i = 0; i < 4; i++) g.fillRect((2 + i) * u, (5 - i) * u, u, u);
+    for (let i = 0; i < 3; i++) g.fillRect((5 + i) * u, (7 - i) * u, u, u);
+    g.fillRect(u, u, 2 * u, u); g.fillRect(u, u, u, 2 * u);
+    return c;
+  }
   if (mark === 'D') { // 小点：深色底上一颗发亮的芯，和普通方块一眼能分开
     g.fillStyle = '#10142a'; g.fillRect(0, 0, D, D);
     g.fillStyle = shade(color, -.35); g.fillRect(u, u, D - 2 * u, D - 2 * u);
@@ -396,6 +421,13 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (mark === 'steel' || mark === 'crack') { // 钢：一道拉丝高光 + 四角铆钉；裂了以后多一条折线裂缝
+    g.fillStyle = shade(color, .35); g.fillRect(2 * u, 3 * u, D - 4 * u, u);
+    g.fillStyle = shade(color, -.18); g.fillRect(2 * u, 6 * u, D - 4 * u, u);
+    for (const [rx, ry] of [[2, 2], [7, 2], [2, 7], [7, 7]]) { g.fillStyle = '#f4f7fb'; g.fillRect(rx * u, ry * u, u, u); }
+    if (mark === 'crack') { g.fillStyle = '#2a2f3d'; for (const [px, py] of [[5, 1], [5, 2], [4, 3], [4, 4], [5, 5], [6, 6], [5, 7], [5, 8], [3, 5], [7, 4]]) g.fillRect(px * u, py * u, u, u); }
+  }
+  if (mark === 'plug') { g.fillStyle = shade(color, -.32); g.fillRect(3 * u, 4 * u, 4 * u, u); g.fillRect(4 * u, 5 * u, 2 * u, u); g.fillRect(4 * u, 6 * u, 2 * u, u); } // 塞子：一个朝下的小箭头
   if (leaf) { g.fillStyle = shade(color, .55); g.fillRect(3 * u, 3 * u, u, u); g.fillRect(6 * u, 3 * u, u, u); g.fillRect(4 * u, 4 * u, 2 * u, u); g.fillRect(4 * u, 5 * u, 2 * u, 2 * u); } // 植物：浅绿色的小芽
   if (ice) { g.fillStyle = '#fff'; for (let i = 0; i < 4; i++) g.fillRect((3 + i) * u, (6 - i) * u, u, u); g.fillRect(6 * u, 6 * u, u, u); } // 冰晶：一道斜向的白色反光
   return c;
@@ -412,13 +444,13 @@ function makeGhost(color, D, alpha){
 function buildCaches(){
   blockCache = {}; ghostCache = { normal: {}, dim: {} }; smallCache = {};
   for (const t in COLORS) {
-    blockCache[t] = makeBlock(COLORS[t], CD, isSpecial(t[0]) ? t[0] : null);
+    blockCache[t] = makeBlock(COLORS[t], CD, markOf(t));
     ghostCache.normal[t] = makeGhost(COLORS[t], CD, .85);
     ghostCache.dim[t] = makeGhost(COLORS[t], CD, .35);
   }
   gridCache = null;
 }
-function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D, isSpecial(t[0]) ? t[0] : null)); }
+function small(t, D){ const k = t + D; return smallCache[k] || (smallCache[k] = makeBlock(COLORS[t], D, markOf(t))); }
 
 /* ================= 声音 ================= */
 const Au = {
@@ -458,6 +490,8 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
+  glass(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.16, .16, now, 'highpass', 7500); [103, 108, 100, 110, 105].forEach((m, i) => Au.tone(midi(m), .045, 'triangle', .07, now + i * .028)); },
+  steel(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(523, .28, 'square', .07, now); Au.tone(784, .22, 'square', .05, now); Au.tone(1109, .14, 'triangle', .05, now); Au.noise(.04, .12, now, 'bandpass', 3000); },
   grow(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [67, 72, 79].forEach((m, i) => Au.tone(midi(m), .06, 'triangle', .1, now + i * .045)); },
   freeze(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [96, 91, 88, 84].forEach((m, i) => Au.tone(midi(m), .09, 'triangle', .09, now + i * .05)); Au.noise(.12, .05, now, 'highpass', 8000); },
   iceBreak(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.22, .16, now + .04, 'highpass', 6500); [100, 103, 96, 108, 101, 105].forEach((m, i) => Au.tone(midi(m), .05, 'square', .045, now + .05 + i * .035)); },
@@ -657,7 +691,8 @@ function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
   if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
-  const kicks = cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
+  const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
+  const kicks = cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -748,9 +783,34 @@ function growPlants(blocked){
   if (grown.length) { fxGrow(grown); Sfx.grow(); }
   return grown;
 }
+// 消行（按列下移）：完好的钢格不走——它裂开、留在原位，它头顶那一列也就不往下掉；其余各列照常下移一格
+function clearRows(full){
+  const kept = [];
+  for (const y of full) for (let x = 0; x < COLS; x++) {
+    if (board[y][x] === 'US') { board[y][x] = 'UC'; kept.push([x, y]); continue; }
+    for (let yy = y; yy > 0; yy--) board[yy][x] = board[yy - 1][x];
+    board[0][x] = null;
+  }
+  return kept;
+}
+// 落地的这块如果有哪一格正压在玻璃格上：玻璃碎掉，方块接着往下落，落稳后再看一次（可能连着压碎几块）
+function breakGlassUnder(){
+  let broke = false;
+  for (let guard = 0; guard < 8; guard++) {
+    const hits = [];
+    for (const [cx, cy] of SHAPES[cur.t][cur.r]) { const x = cur.x + cx, y = cur.y + cy + 1; if (y >= 0 && y < TROWS && board[y][x] === 'KS') hits.push([x, y]); }
+    if (!hits.length) break;
+    for (const [x, y] of hits) board[y][x] = null;
+    fxGlass(hits); broke = true;
+    cur.y = ghostY();
+  }
+  if (broke) Sfx.glass();
+  return broke;
+}
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
+  if (cur.t !== 'D') breakGlassUnder(); // 压在玻璃格上：玻璃碎，这块方块继续落稳，然后才结算
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
@@ -758,6 +818,11 @@ function lock(){
   growPlants(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
+  if (pieceT === 'H') { // 补洞：塞子正下方这一列有空位，就脱离原形掉进最底下那个；原位置少一格
+    const [sx, sy] = cs[0]; let ty = -1;
+    for (let y = TROWS - 1; y > sy; y--) if (!board[y][sx]) { ty = y; break; }
+    if (ty > 0 && sy >= 0) { board[sy][sx] = null; board[ty][sx] = 'HS'; fxDotSink(sx, sy, ty); }
+  }
   cur = null;
   // 没有冰晶的满行才会「触发」消行；有冰晶的满行先冻着，等触发时一起结算
   const trig = [], iced = [];
@@ -765,7 +830,7 @@ function lock(){
   if (trig.length) {
     const full = trig.concat(iced).sort((a, b) => a - b), n = full.length, iceN = iced.length, nEff = Math.min(n, 4);
     const snap = full.map(y => ({ y, cells: board[y].slice() }));
-    for (const y of full) { board.splice(y, 1); board.unshift(Array(COLS).fill(null)); }
+    const steelKept = clearRows(full);
     frozenRows = 0;
     combo++; maxCombo = Math.max(maxCombo, combo);
     let pts = linePts(n) * level * (iceN ? 2 : 1), b2bNow = false; // 带着冰封行一起消：行数 = 触发行 + 冰封行，分数翻倍
@@ -780,6 +845,7 @@ function lock(){
     fxClear(snap, nEff, b2bNow ? b2b - 1 : 0, combo, pc, iceN, n); Sfx.clear(nEff, combo);
     if (iceN) Sfx.iceBreak();
     if (pc) setTimeout(() => Sfx.pc(), 120);
+    if (steelKept.length) { fxSteel(steelKept); Sfx.steel(); }
     if (level > oldLv) levelUp();
   } else {
     combo = 0;
@@ -956,7 +1022,7 @@ function render(){
       const nowMs = performance.now();
       const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
       if (cur.t === 'F' && state === 'play') drawFlame(nowMs);
-      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cur.t + (blink ? '2' : '')], cur.x + cx, cur.y + cy));
+      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
       ctx.globalAlpha = 1;
     }
   }
@@ -1160,6 +1226,32 @@ function fxGrow(grown){
     g.globalAlpha = 1;
   });
   for (const [X, Y] of cells) for (let i = 0; i < 7; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-110, 110), vy: rand(-170, -30), g: 420, max: rand(240, 420), s: u, c: i % 3 ? '#8edb50' : '#eaffc8' });
+}
+function fxGlass(hits){
+  const r = bRect(), c = CELL, u = px(c);
+  const cells = hits.filter(([, y]) => y >= HID).map(([x, y]) => [r.left + x * c, r.top + (y - HID) * c]);
+  anim(140, (k, g) => { g.globalAlpha = 1 - k; g.fillStyle = '#fff'; for (const [X, Y] of cells) g.fillRect(X, Y, c, c); g.globalAlpha = 1; });
+  for (const [X, Y] of cells) for (let i = 0; i < 16; i++) { // 碎玻璃：往四周崩开再落下
+    const a = rand(0, Math.PI * 2), sp = rand(80, 360);
+    addP({ x: X + c / 2, y: Y + c / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, g: 900, max: rand(260, 520), s: u * (i % 4 === 0 ? 2 : 1), c: ['#fff', '#d9d2ff', '#a99be0'][i % 3] });
+  }
+  shake(2, 110);
+  banner('#banner', [['CRACK!', 't-clear']], .35);
+}
+function fxSteel(kept){
+  const r = bRect(), c = CELL, u = px(c);
+  const cells = kept.filter(([, y]) => y >= HID).map(([x, y]) => [r.left + x * c, r.top + (y - HID) * c]);
+  anim(260, (k, g) => { // 留下的钢格：白光一闪，四角迸出十字火花
+    for (const [X, Y] of cells) {
+      if (k < .4) { g.globalAlpha = 1 - k / .4; g.fillStyle = '#fff'; g.fillRect(X, Y, c, c); }
+      g.globalAlpha = 1 - k; g.fillStyle = '#e2e8f2';
+      const d = Math.round(k * c / u) * u;
+      g.fillRect(X + c / 2 - u / 2, Y - d, u, 2 * u); g.fillRect(X + c / 2 - u / 2, Y + c + d - 2 * u, u, 2 * u);
+      g.fillRect(X - d, Y + c / 2 - u / 2, 2 * u, u); g.fillRect(X + c + d - 2 * u, Y + c / 2 - u / 2, 2 * u, u);
+    }
+    g.globalAlpha = 1;
+  }, 120);
+  for (const [X, Y] of cells) for (let i = 0; i < 10; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-220, 220), vy: rand(-260, -40), g: 900, max: rand(200, 400), s: u, c: i % 2 ? '#fff' : '#ffd23f', delay: 120 });
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
