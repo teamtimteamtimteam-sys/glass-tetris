@@ -296,6 +296,7 @@ const PC_PTS = [0, 800, 1200, 1800, 2000];
 const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
   D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', C:'#9fe3ff', C2:'#eafaff',
+  Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
   V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
@@ -322,7 +323,9 @@ SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // C 三格冰晶块：中间一格、上面一格、左边一格；含有冰晶的行填满了也先不消，等下一次消行时一起结算
 SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0], [0, 0]], [[0, 0], [1, 1], [1, 0]]];
 // 一块方块里每一格落到棋盘上用哪种贴图（目前都是自己的类型；留着这个口子，以后做多色方块用）
-const cellKey = (t, i) => t;
+const cellKey = (t, i) => t === 'Y' ? 'Y3' : t;
+// Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
+SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
 // V 四格变形块：五种形态（T、L、J、S、Z），每按一次旋转随机换成另一种
@@ -333,10 +336,10 @@ SHAPES.V = [
   [[1, 0], [2, 0], [0, 1], [1, 1]],
   [[0, 0], [1, 0], [1, 1], [2, 1]],
 ];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'V' || t === 'C';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'V' || t === 'C' || t === 'Y';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['V', .02], ['C', .02]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['V', .02], ['C', .02], ['Y', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -379,7 +382,7 @@ let CELL = 0, CD = 0, blockCache = {}, ghostCache = {}, smallCache = {};
 function makeBlock(color, D, mark){
   const c = document.createElement('canvas'); c.width = c.height = D;
   const g = c.getContext('2d'), u = Math.max(1, Math.round(D / 10));
-  const ice = mark === 'C';
+  const ice = mark === 'C', leaf = mark === 'Y';
   if (mark === 'D') { // 小点：深色底上一颗发亮的芯，和普通方块一眼能分开
     g.fillStyle = '#10142a'; g.fillRect(0, 0, D, D);
     g.fillStyle = shade(color, -.35); g.fillRect(u, u, D - 2 * u, D - 2 * u);
@@ -393,6 +396,7 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (leaf) { g.fillStyle = shade(color, .55); g.fillRect(3 * u, 3 * u, u, u); g.fillRect(6 * u, 3 * u, u, u); g.fillRect(4 * u, 4 * u, 2 * u, u); g.fillRect(4 * u, 5 * u, 2 * u, 2 * u); } // 植物：浅绿色的小芽
   if (ice) { g.fillStyle = '#fff'; for (let i = 0; i < 4; i++) g.fillRect((3 + i) * u, (6 - i) * u, u, u); g.fillRect(6 * u, 6 * u, u, u); } // 冰晶：一道斜向的白色反光
   return c;
 }
@@ -454,6 +458,7 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
+  grow(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [67, 72, 79].forEach((m, i) => Au.tone(midi(m), .06, 'triangle', .1, now + i * .045)); },
   freeze(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [96, 91, 88, 84].forEach((m, i) => Au.tone(midi(m), .09, 'triangle', .09, now + i * .05)); Au.noise(.12, .05, now, 'highpass', 8000); },
   iceBreak(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.22, .16, now + .04, 'highpass', 6500); [100, 103, 96, 108, 101, 105].forEach((m, i) => Au.tone(midi(m), .05, 'square', .045, now + .05 + i * .035)); },
   garbage(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(196, .12, 'square', .07, now); Au.tone(147, .2, 'square', .07, now + .11); Au.noise(.1, .1, now, 'lowpass', 700); },
@@ -593,7 +598,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'Y' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -652,7 +657,7 @@ function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
   if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
-  const kicks = cur.t === 'N' || cur.t === 'C' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
+  const kicks = cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + from + to];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -709,13 +714,48 @@ function hardDrop(){
 const linePts = n => n <= 4 ? LINE_PTS[n] : LINE_PTS[4] + (n - 4) * 300;
 const rowFull = y => board[y].every(Boolean);
 const rowIced = y => board[y].includes('C');
+// 植物生长：棋盘上的 Y3/Y2/Y1 是还在长的植物（数字 = 还剩几回合）。相连的同一批算一株，
+// 每株每回合朝四周随机一个空位长出一格；四面都被挡住就不长。回合数记在格子自己身上，行被消掉、下移时会跟着走。
+function growPlants(blocked){
+  const taken = (x, y) => blocked.some(([bx, by]) => bx === x && by === y);
+  const seen = new Set(), groups = [];
+  for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) {
+    const k = board[y][x];
+    if (!k || k.length !== 2 || k[0] !== 'Y' || seen.has(y * COLS + x)) continue;
+    const cells = [], stack = [[x, y]]; seen.add(y * COLS + x);
+    while (stack.length) {
+      const [cx, cy] = stack.pop(); cells.push([cx, cy]);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= TROWS || board[ny][nx] !== k || seen.has(ny * COLS + nx)) continue;
+        seen.add(ny * COLS + nx); stack.push([nx, ny]);
+      }
+    }
+    groups.push({ k, cells });
+  }
+  const grown = [];
+  for (const g of groups) {
+    const cand = [];
+    for (const [cx, cy] of g.cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < HID || ny >= TROWS || board[ny][nx] || taken(nx, ny)) continue;
+      if (!cand.some(([a, b]) => a === nx && b === ny)) cand.push([nx, ny]);
+    }
+    if (cand.length) { const pick = cand[Math.floor(Math.random() * cand.length)]; g.cells.push(pick); grown.push(pick); }
+    const left = +g.k[1] - 1, nk = left ? 'Y' + left : 'Y';
+    for (const [cx, cy] of g.cells) board[cy][cx] = nk;
+  }
+  if (grown.length) { fxGrow(grown); Sfx.grow(); }
+  return grown;
+}
 let frozenRows = 0;
 function lock(){
-  if (cur.t === 'F') { burnFire(); return; }
+  if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
+  growPlants(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
   cur = null;
@@ -916,7 +956,7 @@ function render(){
       const nowMs = performance.now();
       const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
       if (cur.t === 'F' && state === 'play') drawFlame(nowMs);
-      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cellKey(cur.t, i) + (blink ? '2' : '')], cur.x + cx, cur.y + cy));
+      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cur.t + (blink ? '2' : '')], cur.x + cx, cur.y + cy));
       ctx.globalAlpha = 1;
     }
   }
@@ -1109,6 +1149,17 @@ function fxGarbage(gy, row){
 function fxMorph(){
   const r = bRect(), c = CELL, u = px(c);
   for (const [cx, cy] of SHAPES.V[cur.r]) if (cur.y + cy >= HID) addP({ x: r.left + (cur.x + cx + .5) * c, y: r.top + (cur.y + cy - HID + .5) * c, vx: rand(-90, 90), vy: rand(-90, 90), max: rand(120, 200), s: u, c: '#b9f8d8' });
+}
+function fxGrow(grown){
+  const r = bRect(), c = CELL, u = px(c);
+  const cells = grown.filter(([, y]) => y >= HID).map(([x, y]) => [r.left + x * c, r.top + (y - HID) * c]);
+  anim(240, (k, g) => { // 新长出来的格子：从中心一圈圈撑开，先亮后暗
+    const s = Math.max(u, Math.round(c * Math.min(1, k * 1.6) / u) * u);
+    g.globalAlpha = 1 - k; g.fillStyle = k < .35 ? '#eaffc8' : '#8edb50';
+    for (const [X, Y] of cells) g.fillRect(X + (c - s) / 2, Y + (c - s) / 2, s, s);
+    g.globalAlpha = 1;
+  });
+  for (const [X, Y] of cells) for (let i = 0; i < 7; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-110, 110), vy: rand(-170, -30), g: 420, max: rand(240, 420), s: u, c: i % 3 ? '#8edb50' : '#eaffc8' });
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
