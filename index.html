@@ -297,11 +297,10 @@ const DAILY_MS = 5 * 60 * 1000;
 const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450', J:'#506fcb', L:'#da873d', G:'#4b5068', W:'#ffffff',
   D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', C:'#9fe3ff', C2:'#eafaff',
   H:'#c79a5e', HS:'#ffe9b0', HS2:'#ffffff',               // 补洞块：沙色身体 + 奶油色的「塞子」格
-  K:'#a99be0', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：淡紫身体 + 透明玻璃格
+  K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   U:'#566074', US:'#a9b3c6', US2:'#e2e8f2', UC:'#98a2b6', // 钢铁块：铁灰身体 + 钢格（US 完好，UC 已裂）
   Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
-  N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398',
-  V:'#3ddc97', V2:'#b9f8d8' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
+  N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
   I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], J:[[1,0,0],[1,1,1],[0,0,0]], L:[[0,0,1],[1,1,1],[0,0,0]],
@@ -329,32 +328,25 @@ SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0],
 // 下面三种方块各有一个「特殊格」，永远排在第 0 个
 // H 补洞块：T 形，突出的那一格是塞子；落地时塞子正下方这一列如果有空洞，塞子脱离、掉进最底下的空位
 SHAPES.H = [[[1, 2], [0, 1], [1, 1], [2, 1]], [[0, 1], [1, 0], [1, 1], [1, 2]], [[1, 0], [0, 1], [1, 1], [2, 1]], [[2, 1], [1, 0], [1, 1], [1, 2]]];
-// K 易碎块：L 形，顶端那一格是玻璃；之后有方块直接压在玻璃格上，玻璃碎掉，那块方块继续往下落
+// K 易碎块：L 形，四格全是玻璃；之后有方块直接压在哪一格上，那一格就碎掉，那块方块继续往下落
 SHAPES.K = [[[2, 0], [0, 1], [1, 1], [2, 1]], [[2, 2], [1, 0], [1, 1], [1, 2]], [[0, 2], [2, 1], [1, 1], [0, 1]], [[0, 0], [1, 2], [1, 1], [1, 0]]];
 // U 钢铁块：三格横条，中间是钢格；钢格所在行被消掉时它留在原位（裂开），第二次才真正消掉
 SHAPES.U = [[[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]], [[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]]];
 const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U';
-const cellKey = (t, i) => t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 ? t + 'S' : t) : t;
+const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
+const cellKey = (t, i) => t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => HAS_CORE(t) ? (i === 0 ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
 const markOf = k => k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-// V 四格变形块：五种形态（T、L、J、S、Z），每按一次旋转随机换成另一种
-SHAPES.V = [
-  [[1, 0], [0, 1], [1, 1], [2, 1]],
-  [[2, 0], [0, 1], [1, 1], [2, 1]],
-  [[0, 0], [0, 1], [1, 1], [2, 1]],
-  [[1, 0], [2, 0], [0, 1], [1, 1]],
-  [[0, 0], [1, 0], [1, 1], [2, 1]],
-];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'V' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .03], ['V', .02], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02]];
+const SPECIAL_SHARE = [['D', .05], ['N', .015], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -676,20 +668,8 @@ function stepDown(){
   if (cur.y > lowestY) { lowestY = cur.y; lockResets = 0; lockTimer = 0; }
   return true;
 }
-// 变形块：随机换成另一种形态（放不下的形态跳过；这里用 Math.random，不占用决定方块顺序的随机源）
-function morph(){
-  const forms = [0, 1, 2, 3, 4].filter(f => f !== cur.r).sort(() => Math.random() - .5);
-  for (const to of forms) for (const [kx, ky] of [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0]]) {
-    if (collide('V', to, cur.x + kx, cur.y - ky)) continue;
-    cur.x += kx; cur.y -= ky; cur.r = to;
-    if (cur.y > lowestY) { lowestY = cur.y; lockResets = 0; lockTimer = 0; }
-    noteGroundReset(); fxMorph(); return true;
-  }
-  return false;
-}
 function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
-  if (cur.t === 'V') return morph();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
   const kicks = cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
@@ -1211,10 +1191,6 @@ function fxGarbage(gy, row){
   row.forEach((t, x) => { if (t && gy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + .5) * c, y: sy, vx: rand(-60, 60), vy: rand(-150, -50), g: 600, max: rand(180, 300), s: u, c: i ? '#7d8398' : '#ff5a4a' }); });
   shake(3, 150);
   banner('#banner', [['+1 ROW', 't-combo']], .45);
-}
-function fxMorph(){
-  const r = bRect(), c = CELL, u = px(c);
-  for (const [cx, cy] of SHAPES.V[cur.r]) if (cur.y + cy >= HID) addP({ x: r.left + (cur.x + cx + .5) * c, y: r.top + (cur.y + cy - HID + .5) * c, vx: rand(-90, 90), vy: rand(-90, 90), max: rand(120, 200), s: u, c: '#b9f8d8' });
 }
 function fxGrow(grown){
   const r = bRect(), c = CELL, u = px(c);
