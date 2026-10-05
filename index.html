@@ -298,6 +298,9 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   D:'#eef2ff', D2:'#63dcff', F:'#e2452e', F2:'#ff8a2c', F3:'#ffd23f', C:'#9fe3ff', C2:'#eafaff',
   H:'#c79a5e', HS:'#ffe9b0', HS2:'#ffffff',               // 补洞块：沙色身体 + 奶油色的「塞子」格
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
+  Q:'#7b6657', Q2:'#a48d7b',                                // 重压块：铸铁般的深棕
+  A:'#f5b800', AP:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',   // 牵连块：金黄。AS = 下落时的特殊格；落地后特殊格记成 AU/AD/AL/AR（同伴在上/下/左/右），同伴记成 AP
+  AU:'#ffd23f', AD:'#ffd23f', AL:'#ffd23f', AR:'#ffd23f',
   U:'#566074', US:'#a9b3c6', US2:'#e2e8f2', UC:'#98a2b6', // 钢铁块：铁灰身体 + 钢格（US 完好，UC 已裂）
   Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
@@ -332,21 +335,29 @@ SHAPES.H = [[[1, 2], [0, 1], [1, 1], [2, 1]], [[0, 1], [1, 0], [1, 1], [1, 2]], 
 SHAPES.K = [[[2, 0], [0, 1], [1, 1], [2, 1]], [[2, 2], [1, 0], [1, 1], [1, 2]], [[0, 2], [2, 1], [1, 1], [0, 1]], [[0, 0], [1, 2], [1, 1], [1, 0]]];
 // U 钢铁块：三格横条，中间是钢格；钢格所在行被消掉时它留在原位（裂开），第二次才真正消掉
 SHAPES.U = [[[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]], [[1, 1], [0, 1], [2, 1]], [[1, 1], [1, 0], [1, 2]]];
-const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U';
+// Q 重压块：2×4 共 8 格，横竖两种摆法；落地时如果整块底下只有一格方块在撑着，就把那一格压碎再落下去（只压一次）
+SHAPES.Q = [0, 1, 2, 3].map(r => r % 2 === 0
+  ? [[0, 1], [1, 1], [2, 1], [3, 1], [0, 2], [1, 2], [2, 2], [3, 2]]
+  : [[1, 0], [2, 0], [1, 1], [2, 1], [1, 2], [2, 2], [1, 3], [2, 3]]);
+// A 牵连块：和植物块一样的两格短条；第 0 格是特殊格，它参与消行时，同一块里没被消掉的另一格也跟着消失
+SHAPES.A = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[1, 1], [0, 1]], [[0, 1], [0, 0]]];
+const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A';
+const isAuraCore = k => k.length === 2 && k[0] === 'A' && k !== 'AP'; // 棋盘上的牵连特殊格
+const LINK_DIR = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
 const cellKey = (t, i) => t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
 const fallSkin = (t, i, blink) => HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => /^A[SUDLR]/.test(k) ? 'aura' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .03], ['A', .03]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -413,6 +424,15 @@ function makeBlock(color, D, mark){
   g.fillStyle = shade(color, -.28); g.fillRect(u, D - 2 * u, D - 2 * u, u); g.fillRect(D - 2 * u, u, u, D - 2 * u); // 右下暗边
   g.fillStyle = shade(color, -.08); g.fillRect(3 * u, 3 * u, D - 6 * u, D - 6 * u); // LCD 内凹
   g.fillStyle = shade(color, .6); g.fillRect(2 * u, 2 * u, u, u);                   // 高光像素
+  if (mark === 'heavy') { // 重：底边和右边的暗边加厚一倍，像一块压下来的铸铁；面上两道刻线
+    g.fillStyle = shade(color, -.5); g.fillRect(u, D - 3 * u, D - 2 * u, 2 * u); g.fillRect(D - 3 * u, u, 2 * u, D - 2 * u);
+    g.fillStyle = shade(color, .28); g.fillRect(3 * u, 3 * u, 3 * u, u);
+    g.fillStyle = shade(color, -.3); g.fillRect(3 * u, 5 * u, 3 * u, u);
+  }
+  if (mark === 'aura') { // 金色气场：中心一颗白热的菱形芯，四角各一粒亮点
+    g.fillStyle = '#fff6b0'; g.fillRect(4 * u, 2 * u, 2 * u, 6 * u); g.fillRect(2 * u, 4 * u, 6 * u, 2 * u); g.fillRect(3 * u, 3 * u, 4 * u, 4 * u);
+    g.fillStyle = '#fff'; g.fillRect(4 * u, 3 * u, 2 * u, 4 * u); g.fillRect(3 * u, 4 * u, 4 * u, 2 * u);
+  }
   if (mark === 'steel' || mark === 'crack') { // 钢：一道拉丝高光 + 四角铆钉；裂了以后多一条折线裂缝
     g.fillStyle = shade(color, .35); g.fillRect(2 * u, 3 * u, D - 4 * u, u);
     g.fillStyle = shade(color, -.18); g.fillRect(2 * u, 6 * u, D - 4 * u, u);
@@ -482,6 +502,9 @@ const Sfx = {
   rotate(){ if (this.ok()) Au.tone(2000, .022, 'square', .04); },
   hold(){ if (this.ok()) { Au.tone(660, .04, 'square', .05); Au.tone(990, .05, 'square', .05, Au.ctx.currentTime + .04); } },
   lock(){ if (this.ok()) Au.tone(220, .03, 'square', .04); },
+  heavy(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(70, .3, 'triangle', .6, now, .45); Au.tone(48, .4, 'sine', .5, now + .02, .6); Au.noise(.14, .22, now, 'lowpass', 500); },
+  crush(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.2, .3, now, 'lowpass', 1600); Au.tone(180, .16, 'square', .1, now, .3); [0, .04, .09].forEach(d => Au.noise(.03, .14, now + d, 'bandpass', 2400)); },
+  link(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(220, .35, 'sawtooth', .07, now, 5); [72, 76, 79, 84, 88].forEach((m, i) => Au.tone(midi(m), .07, 'square', .06, now + .04 + i * .04)); Au.noise(.2, .08, now + .1, 'highpass', 6000); },
   glass(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.16, .16, now, 'highpass', 7500); [103, 108, 100, 110, 105].forEach((m, i) => Au.tone(midi(m), .045, 'triangle', .07, now + i * .028)); },
   steel(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(523, .28, 'square', .07, now); Au.tone(784, .22, 'square', .05, now); Au.tone(1109, .14, 'triangle', .05, now); Au.noise(.04, .12, now, 'bandpass', 3000); },
   grow(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [67, 72, 79].forEach((m, i) => Au.tone(midi(m), .06, 'triangle', .1, now + i * .045)); },
@@ -624,7 +647,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' ? 4 : 3, y: t === 'I' ? 0 : t === 'D' || t === 'Y' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' ? 4 : 3, y: t === 'I' || t === 'Q' ? 0 : t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -672,7 +695,7 @@ function rotateCW(){
   if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
-  const kicks = cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
+  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -787,10 +810,39 @@ function breakGlassUnder(){
   if (broke) Sfx.glass();
   return broke;
 }
+// 重压：整块底下如果只有一格方块在撑（没碰到地面），压碎那一格，整块再落到底；只触发这一次
+function heavyCrush(){
+  const cells = SHAPES.Q[cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]), own = new Set(cells.map(([x, y]) => y * COLS + x));
+  const sup = []; let floor = false;
+  for (const [x, y] of cells) {
+    const ny = y + 1;
+    if (own.has(ny * COLS + x)) continue;
+    if (ny >= TROWS) { floor = true; continue; }
+    if (ny >= 0 && board[ny][x]) sup.push([x, ny]);
+  }
+  if (floor || sup.length !== 1) return false;
+  const [sx, sy] = sup[0], t = board[sy][sx];
+  board[sy][sx] = null;
+  fxCrush(sx, sy, t); Sfx.crush();
+  cur.y = ghostY();
+  return true;
+}
+// 牵连：找出被消行里的特殊格，把它不在被消行里的同伴挖掉；返回被挖掉的格子
+function pullLinked(full){
+  const gone = [];
+  for (const y of full) for (let x = 0; x < COLS; x++) {
+    const k = board[y][x]; if (!k || !isAuraCore(k) || k === 'AS') continue;
+    const [dx, dy] = LINK_DIR[k[1]], tx = x + dx, ty = y + dy;
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= TROWS || full.includes(ty) || board[ty][tx] !== 'AP') continue;
+    board[ty][tx] = null; gone.push([tx, ty, x, y]);
+  }
+  return gone;
+}
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
   if (cur.t !== 'D') breakGlassUnder(); // 压在玻璃格上：玻璃碎，这块方块继续落稳，然后才结算
+  if (cur.t === 'Q') heavyCrush();
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
@@ -798,6 +850,12 @@ function lock(){
   growPlants(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
+  if (pieceT === 'Q') fxHeavyLand(cs);
+  if (pieceT === 'A' && cs[0][1] >= 0 && cs[1][1] >= 0) { // 牵连：特殊格记下同伴在哪个方向，同伴记成 AP
+    const dx = cs[1][0] - cs[0][0], dy = cs[1][1] - cs[0][1];
+    board[cs[0][1]][cs[0][0]] = 'A' + (dy < 0 ? 'U' : dy > 0 ? 'D' : dx < 0 ? 'L' : 'R');
+    board[cs[1][1]][cs[1][0]] = 'AP';
+  }
   if (pieceT === 'H') { // 补洞：塞子正下方这一列有空位，就脱离原形掉进最底下那个；原位置少一格
     const [sx, sy] = cs[0]; let ty = -1;
     for (let y = TROWS - 1; y > sy; y--) if (!board[y][sx]) { ty = y; break; }
@@ -810,7 +868,9 @@ function lock(){
   if (trig.length) {
     const full = trig.concat(iced).sort((a, b) => a - b), n = full.length, iceN = iced.length, nEff = Math.min(n, 4);
     const snap = full.map(y => ({ y, cells: board[y].slice() }));
+    const linked = pullLinked(full); // 牵连：特殊格在被消的行里，它的同伴如果不在被消的行里，也一起消失（原地留洞）
     const steelKept = clearRows(full);
+    if (linked.length) { fxLink(linked); Sfx.link(); }
     frozenRows = 0;
     combo++; maxCombo = Math.max(maxCombo, combo);
     let pts = linePts(n) * level * (iceN ? 2 : 1), b2bNow = false; // 带着冰封行一起消：行数 = 触发行 + 冰封行，分数翻倍
@@ -979,9 +1039,10 @@ function render(){
   drawGrid();
   if (board) {
     const dying = state === 'dying', greyFrom = dying ? TROWS - Math.floor(Math.min(1, dieT / 600) * ROWS) : TROWS;
+    const auraPh = Math.floor(performance.now() / 240) % 2; // 棋盘上的牵连特殊格一明一暗
     for (let y = HID; y < TROWS; y++) {
       const row = board[y];
-      for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : row[x]], x, y);
+      for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : auraPh && isAuraCore(row[x]) ? 'AS2' : row[x]], x, y);
       if (!dying && rowFull(y) && rowIced(y)) { // 冻住的满行：冰蓝罩层 + 上下霜边 + 一道来回扫的反光 + 闪烁的冰粒
         const sy = (y - HID) * CD, W = COLS * CD, u = Math.max(1, Math.round(CD / 10)), t = performance.now(), ph = Math.floor(t / 150);
         ctx.fillStyle = 'rgba(170,228,255,.42)'; ctx.fillRect(0, sy, W, CD);
@@ -1002,6 +1063,7 @@ function render(){
       const nowMs = performance.now();
       const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
       if (cur.t === 'F' && state === 'play') drawFlame(nowMs);
+      if (cur.t === 'A' && state === 'play') drawAura(nowMs, cs);
       cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
       ctx.globalAlpha = 1;
     }
@@ -1009,6 +1071,28 @@ function render(){
   drawFx();
 }
 // 火焰方块下落时：头顶一团跳动的像素火舌；它落地会烧到的那几列微微发红，提前告诉玩家范围
+// 牵连块下落时：整块外面裹一圈往上窜的金色尖刺气焰
+function drawAura(t, cs){
+  const u = Math.max(1, Math.round(CD / 8)), fr = Math.floor(t / 50);
+  const xs = cs.map(([cx]) => cur.x + cx), ys = cs.map(([, cy]) => cur.y + cy);
+  const x0 = Math.min(...xs) * CD, w = (Math.max(...xs) - Math.min(...xs) + 1) * CD;
+  const top = (Math.min(...ys) - HID) * CD, bot = (Math.max(...ys) - HID + 1) * CD, tall = 1.9 * CD;
+  for (let yy = -(bot - top); yy < tall; yy += u) {            // 从块的底边一直画到头顶上方
+    const h = Math.max(0, yy) / tall;
+    for (let xx = -3 * u; xx < w + 3 * u; xx += u) {
+      const inside = xx >= 0 && xx < w && yy < 0;
+      if (inside) continue;                                     // 块本身不盖住
+      const n = ((Math.floor(xx / u) * 11 + Math.floor(yy / u) * 5 + fr * 7) % 13 + 13) % 13 / 13;
+      const side = xx < 0 ? -xx / (3 * u) : xx >= w ? (xx - w + u) / (3 * u) : 0;  // 两侧越往外越稀
+      const spike = ((Math.floor(xx / u) + fr) % 4 === 0) ? .25 : 0;               // 每隔几列窜出一根尖刺
+      if (n < h * 1.05 + side * .75 - spike) continue;
+      ctx.fillStyle = h < .25 ? (n > .6 ? '#fff' : '#fff6b0') : h < .6 ? '#ffd23f' : '#f2a900';
+      ctx.globalAlpha = 1 - h * .5;
+      ctx.fillRect(x0 + xx, top - yy - u, u, u);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
 function drawFlame(t){
   const u = Math.max(1, Math.round(CD / 8)), fr = Math.floor(t / 55), H = ROWS * CD;
   const cx0 = Math.max(0, cur.x - 1), cx1 = Math.min(COLS, cur.x + 3);
@@ -1229,6 +1313,44 @@ function fxSteel(kept){
   }, 120);
   for (const [X, Y] of cells) for (let i = 0; i < 10; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-220, 220), vy: rand(-260, -40), g: 900, max: rand(200, 400), s: u, c: i % 2 ? '#fff' : '#ffd23f', delay: 120 });
 }
+function fxHeavyLand(cs){
+  const r = bRect(), c = CELL, u = px(c);
+  const maxY = Math.max(...cs.map(([, y]) => y)), feet = cs.filter(([, y]) => y === maxY && y >= HID);
+  for (const [x, y] of feet) for (let i = 0; i < 5; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: r.top + (y - HID + 1) * c - u, vx: rand(-160, 160), vy: rand(-150, -30), g: 700, max: rand(200, 380), s: u * (i === 0 ? 2 : 1), c: i % 2 ? '#a48d7b' : '#c9cde0' });
+  anim(150, (k, g) => { // 落地一瞬：脚下一条向两边摊开的冲击线
+    if (!feet.length) return;
+    const xs = feet.map(([x]) => x), x0 = r.left + Math.min(...xs) * c, w = (Math.max(...xs) - Math.min(...xs) + 1) * c, y = r.top + (maxY - HID + 1) * c - u, d = Math.round(k * c * 1.5 / u) * u;
+    g.globalAlpha = 1 - k; g.fillStyle = '#fff'; g.fillRect(x0 - d, y, w + 2 * d, u); g.globalAlpha = 1;
+  });
+  shake(5, 200); Sfx.heavy(); Hap.fire(2);
+  wrapEl.classList.add('bump'); setTimeout(() => wrapEl.classList.remove('bump'), 90);
+}
+function fxCrush(x, y, t){
+  if (y < HID) return;
+  const r = bRect(), c = CELL, u = px(c), X = r.left + x * c, Y = r.top + (y - HID) * c, col = COLORS[t] || '#fff';
+  anim(160, (k, g) => { // 被压碎的那一格：闪白，往下压扁
+    const h = Math.max(u, Math.round(c * (1 - k) / u) * u);
+    g.globalAlpha = 1 - k * .5; g.fillStyle = k < .35 ? '#fff' : col; g.fillRect(X, Y + c - h, c, h); g.globalAlpha = 1;
+  });
+  for (let i = 0; i < 18; i++) addP({ x: X + rand(0, c), y: Y + c * .6, vx: rand(-320, 320), vy: rand(-220, 40), g: 900, max: rand(240, 480), s: u * (i % 4 === 0 ? 2 : 1), c: i % 3 ? col : '#fff', delay: 40 });
+  banner('#banner', [['CRUSH!', 't-clear']], .4);
+}
+function fxLink(linked){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [tx, ty, sx, sy] of linked) {
+    if (ty < HID) continue;
+    const X = r.left + tx * c, Y = r.top + (ty - HID) * c, SX = r.left + (sx + .5) * c, SY = r.top + (sy - HID + .5) * c;
+    anim(260, (k, g) => { // 同伴格：金白一闪，从四周往中心收没；和特殊格之间拉一道像素闪电
+      const sz = Math.max(0, Math.round(c * (1 - k) / u) * u);
+      g.fillStyle = k < .3 ? '#fff' : '#ffd23f'; g.fillRect(X + (c - sz) / 2, Y + (c - sz) / 2, sz, sz);
+      g.globalAlpha = 1 - k; g.fillStyle = '#fff6b0';
+      for (let i = 0; i <= 6; i++) { const px_ = SX + (X + c / 2 - SX) * i / 6 + ((i + Math.floor(k * 8)) % 2 ? u : -u), py_ = SY + (Y + c / 2 - SY) * i / 6; g.fillRect(Math.round(px_), Math.round(py_), 2 * u, 2 * u); }
+      g.globalAlpha = 1;
+    });
+    for (let i = 0; i < 20; i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 420); addP({ x: X + c / 2, y: Y + c / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 160, g: 300, max: rand(280, 520), s: u * (i % 4 === 0 ? 2 : 1), c: ['#fff', '#fff6b0', '#ffd23f', '#f2a900'][i % 4], delay: 60 }); }
+  }
+  setTimeout(() => shake(3, 160), 60);
+}
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
@@ -1383,8 +1505,16 @@ function fxLevelUp(){
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
 }
-let emberT = 0, snowT = 0;
+let emberT = 0, snowT = 0, auraT = 0;
 function updateFx(dt){
+  if (cur && cur.t === 'A' && state === 'play') { // 牵连块下落时身边往上飘金色光点
+    auraT += dt;
+    while (auraT > 40) {
+      auraT -= 40;
+      const r = bRect(), c = CELL, u = px(c);
+      if (cur.y >= HID - 1) addP({ x: r.left + (cur.x + rand(-.4, 2.4)) * c, y: r.top + (cur.y - HID + rand(0, 2)) * c, vx: rand(-15, 15), vy: rand(-260, -120), max: rand(220, 420), s: u, c: Math.random() < .4 ? '#fff' : '#ffd23f' });
+    }
+  }
   if (cur && cur.t === 'C' && state === 'play') { // 冰晶块下落时掉雪粒
     snowT += dt;
     while (snowT > 70) {
