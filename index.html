@@ -360,7 +360,7 @@ SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1],
 const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .03], ['A', .03], ['E', .02]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .03], ['A', .01], ['E', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
