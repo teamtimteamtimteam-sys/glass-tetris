@@ -581,45 +581,98 @@ const Sfx = {
   count(go){ if (this.ok()) Au.tone(go ? 1320 : 660, go ? .15 : .08, 'square', .06); },
 };
 
-/* ================= 芯片音乐（随级别加层，不是简单倍速） ================= */
-const CHORDS = [[45, 0], [41, 1], [48, 1], [43, 1]]; // Am F C G：根音 MIDI + 是否大三
-const LEAD = [ // 每小节 16 个 16 分音符位置；数值 = 和弦音序号（-1 休止），只在最高强度出现
-  [2, -1, 1, -1, 0, -1, 1, 2, -1, -1, 3, -1, 2, -1, 1, -1],
-  [2, -1, -1, 1, 0, -1, -1, -1, 1, -1, 2, -1, 3, -1, -1, -1],
-  [3, -1, 2, -1, 1, -1, 2, 3, -1, -1, 4, -1, 3, -1, 2, -1],
-  [1, -1, -1, 2, 3, -1, -1, -1, 2, -1, 1, -1, 0, -1, -1, -1],
+/* ================= 芯片音乐：18 级各一种风格 ================= */
+// 每种风格只写「配方」：速度、调式、四小节和弦、各声部的节奏型；主旋律由级别做种子现场生成（同一级每次都一样）
+const SC = { maj: [0, 2, 4, 5, 7, 9, 11], min: [0, 2, 3, 5, 7, 8, 10], dor: [0, 2, 3, 5, 7, 9, 10], phr: [0, 1, 4, 5, 7, 8, 10], cpen: [0, 2, 4, 7, 9], blu: [0, 3, 5, 6, 7, 10], har: [0, 2, 3, 5, 7, 8, 11], mix: [0, 2, 4, 5, 7, 9, 10] };
+const CH = { M: [0, 4, 7], m: [0, 3, 7], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10], 7: [0, 4, 7, 10], d: [0, 3, 6], 5: [0, 7, 12] };
+// 字段：n 名字；bpm；key 主音(MIDI)；sc 调式；spb 每小节几步；sdiv 一拍几步；sw 摇摆量；ch 四小节和弦 [离主音几个半音, 和弦类型]
+// bass 低音型：0 根音 5 五度 8 八度 3 三度 7 小七度 . 休止；arp 分解和弦：数字 = 第几个和弦音，c = 整个和弦短促一下；asc 表示 arp 的数字按音阶走
+// lead 主旋律的节奏（x = 出声）；k 底鼓 s 军鼓 h 镲 p 小打；bw/aw/lw 各声部波形；bv/av/lv 音量；bl/al 音符长度（步）；ao/lo 八度；loct 主旋律叠高八度
+const STYLES = [
+  { n: 'DAWN',      bpm: 92,  key: 60, sc: 'maj',  ch: [[0, 'M'], [9, 'm'], [5, 'M'], [7, 'M']],     bass: '0.......5.......', arp: '0.1.2.1.0.1.2.3.', lead: 'x...x...x.x.....', h: '....h.......h...', bw: 'triangle', aw: 'triangle', lw: 'triangle', bv: .6, av: .13, lv: .2, hv: .06, ao: 1, lo: 1 },
+  { n: 'HOP',       bpm: 104, key: 67, sc: 'maj',  ch: [[0, 'M'], [5, 'M'], [7, 'M'], [0, 'M']],     bass: '0.8.0.8.0.8.0.8.', arp: '0.2.1.2.0.2.1.2.', lead: 'x.x.x...x.xxx...', k: 'x.......x.......', s: '....x.......x...', h: '..h...h...h...h.', av: .045, lo: 1 },
+  { n: 'BOSSA',     bpm: 100, key: 65, sc: 'maj',  ch: [[0, 'M7'], [2, 'm7'], [7, '7'], [0, 'M7']],  bass: '0..5..0...5.0...', arp: 'c..c..c...c.c...', lead: 'x..x..x.....x.x.', k: 'x..x..x...x.x...', h: 'h.h.h.h.h.h.h.h.', p: '..p..p....p..p..', bw: 'triangle', aw: 'triangle', lw: 'triangle', av: .09, lv: .13, kv: .3, hv: .05, pv: .2, pf: 900, ao: 1, lo: 1 },
+  { n: 'WALTZ',     bpm: 138, key: 62, sc: 'min',  spb: 12, ch: [[0, 'm'], [5, 'm'], [7, 'M'], [0, 'm']], bass: '0...........', arp: '....c...c...', lead: 'x...x.x.x...', k: 'x...........', s: '....x...x...', bl: 3.5, bv: .55, sv: .12, av: .09, lw: 'triangle', lv: .17, ao: 1, lo: 1 },
+  { n: 'FUNK',      bpm: 106, key: 52, sc: 'dor',  ch: [[0, 'm7'], [0, 'm7'], [5, '7'], [0, 'm7']],  bass: '0..0.8..0.7.0.3.', arp: '..c..c....c..c..', lead: 'x.xx..x...x.x.x.', k: 'x..x......x.....', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', bw: 'square', bv: .22, bl: .9, al: .5, hv: .07, ao: 2, lo: 2 },
+  { n: 'JADE',      bpm: 112, key: 62, sc: 'cpen', ch: [[0, '5'], [7, '5'], [9, '5'], [7, '5']],     bass: '0.......0...5...', arp: '0.2.4.2.1.2.4.2.', asc: 1, lead: 'x.x.xx..x...x.x.', k: 'x.......x.......', p: 'p.......p..p....', bw: 'triangle', aw: 'triangle', av: .07, pf: 1100, pv: .22, kv: .4, ao: 1, lo: 1 },
+  { n: 'SKA',       bpm: 124, key: 60, sc: 'maj',  ch: [[0, 'M'], [5, 'M'], [7, 'M'], [5, 'M']],     bass: '0.3.5.3.0.3.5.3.', arp: '..c...c...c...c.', lead: 'x...x.x...x.x...', k: 'x.......x.......', s: '....x.......x...', h: '..h...h...h...h.', al: .5, av: .07, ao: 1, lo: 1 },
+  { n: 'BLUES',     bpm: 112, key: 57, sc: 'blu',  spb: 12, sdiv: 3, ch: [[0, '7'], [5, '7'], [0, '7'], [7, '7']], bass: '0..3..5..7..', arp: 'c..c.cc..c.c', lead: 'x.x..x...x.x', k: 'x.....x.....', s: '...x.....x..', h: 'h.hh.hh.hh.h', al: .6, av: .05, hv: .07, ao: 1, lo: 1 },
+  { n: 'DISCO',     bpm: 122, key: 54, sc: 'min',  ch: [[0, 'm'], [8, 'M'], [3, 'M'], [10, 'M']],    bass: '0.8.0.8.0.8.0.8.', arp: '0123012301230123', lead: 'x.......x.x.x...', k: 'x...x...x...x...', s: '....x.......x...', h: '..h...h...h...h.', bw: 'square', bv: .2, bl: .9, av: .03, lw: 'sawtooth', lv: .06, hv: .16, ao: 2, lo: 2 },
+  { n: 'DESERT',    bpm: 118, key: 64, sc: 'phr',  ch: [[0, 'M'], [1, 'M'], [0, 'M'], [10, 'm']],    bass: '0..0..0.0..0..5.', arp: '0.......2.......', lead: 'x.xxx.x.x.xx..x.', k: 'x.....x...x.....', p: 'p..p..p.p..pp.p.', al: 6, av: .04, pf: 300, pv: .3, lo: 1 },
+  { n: 'NEON',      bpm: 126, key: 57, sc: 'min',  ch: [[0, 'm'], [5, 'm'], [8, 'M'], [7, 'M']],     bass: '0.0.0.0.0.0.0.0.', arp: '0.2.3.2.0.2.3.2.', lead: 'x.......x...x...', k: 'x...x...x...x...', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.', bw: 'sawtooth', bv: .16, bl: .9, av: .04, lw: 'sawtooth', lv: .065, sv: .45, hv: .07, ao: 1, lo: 1 },
+  { n: 'SALSA',     bpm: 132, key: 62, sc: 'min',  ch: [[0, 'm'], [7, '7'], [0, 'm'], [7, '7']],     bass: '0..5..8...5.0...', arp: '0.2.3.2.3.2.0.2.', lead: 'x.x..x.x..x.x...', k: 'x.......x.......', h: 'h.hhh.hhh.hhh.hh', p: 'p..p..p...p.p...', av: .05, hv: .06, pf: 1500, pv: .3, kv: .4, ao: 1, lo: 1 },
+  { n: 'ROCK',      bpm: 144, key: 52, sc: 'min',  ch: [[0, '5'], [8, '5'], [3, '5'], [10, '5']],    bass: '0.0.0.0.0.0.0.0.', arp: 'c...c...c.c.c...', lead: 'x...x.x.x...x.xx', k: 'x.....x.x.......', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.', bw: 'sawtooth', bv: .16, bl: .9, aw: 'sawtooth', av: .045, al: 1.6, sv: .45, ao: 1, lo: 2 },
+  { n: 'JUNGLE',    bpm: 164, key: 53, sc: 'min',  ch: [[0, 'm'], [0, 'm'], [8, 'M'], [7, 'M']],     bass: '0.........0..0..', arp: '..2...3...2...0.', lead: 'x.....x...x.....', k: 'x.........x.....', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', p: '.......p.p....p.', bw: 'sine', bv: .36, bl: 5, av: .05, hv: .07, pf: 220, pv: .25, ao: 2, lo: 2 },
+  { n: 'BAROQUE',   bpm: 152, key: 62, sc: 'har',  ch: [[0, 'm'], [5, 'm'], [7, 'M'], [0, 'm']],     bass: '0...3...5...3...', arp: '0123210301232103', lead: 'x.x.xxxxx.x.xxxx', bl: 3.5, al: .6, av: .05, lw: 'triangle', lv: .13, ao: 1, lo: 1 },
+  { n: 'ACID',      bpm: 150, key: 45, sc: 'phr',  ch: [[0, 'm'], [0, 'm'], [1, 'M'], [0, 'm']],     bass: '0.00.0800.07.030', arp: 'c...........c...', lead: '....x.......x.x.', k: 'x...x...x...x...', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', bw: 'sawtooth', bv: .2, bl: .8, bo: 12, al: .4, av: .04, hv: .06, ao: 2, lo: 3 },
+  { n: 'METAL',     bpm: 168, key: 52, sc: 'har',  ch: [[0, '5'], [1, '5'], [0, '5'], [6, '5']],     bass: '0000000000000000', arp: 'c.......c...c...', lead: 'x.x.x.xxx.x.x.xx', k: 'xxxxxxxxxxxxxxxx', s: '....x.......x...', h: 'h...h...h...h...', bw: 'sawtooth', bv: .13, bl: .8, aw: 'sawtooth', av: .05, al: 3, kv: .4, sv: .5, ao: 1, lo: 2 },
+  { n: 'FINAL',     bpm: 176, key: 50, sc: 'har',  ch: [[0, 'm'], [8, 'M'], [6, 'd'], [7, 'M']],     bass: '0.0.8.0.0.0.8.7.', arp: '0123012301230123', lead: 'x.x.xx.x.x.xx.xx', k: 'x..x..x.x..x..x.', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', p: '..........p.p.pp', bw: 'sawtooth', bv: .16, bl: .9, av: .035, sv: .5, hv: .08, pf: 200, pv: .35, loct: 1, ao: 2, lo: 2 },
 ];
+const degSemi = (sc, d) => SC[sc][((d % SC[sc].length) + SC[sc].length) % SC[sc].length] + 12 * Math.floor(d / SC[sc].length);
+// 主旋律：8 小节。强拍落在和弦音上，其余在音阶里一两级一两级地走；第 5、6 小节重复第 1、2 小节，听起来像一首有主题的曲子
+function makeLead(st, lv){
+  const spb = st.spb || 16, sdiv = st.sdiv || 4, total = spb * 8, rnd = mulberry32(lv * 7919 + 13), out = Array(total).fill(null);
+  const center = st.key + 12 * (st.lo || 1), pool = [];
+  for (let d = -8; d <= 20; d++) { const n = center + degSemi(st.sc, d); if (n >= center - 5 && n <= center + 15) pool.push(n); }
+  let idx = pool.findIndex(n => n >= center);
+  for (let bar = 0; bar < 8; bar++) {
+    if (bar === 4 || bar === 5) { for (let b = 0; b < spb; b++) { const src = out[(bar - 4) * spb + b]; out[bar * spb + b] = src && { n: src.n, len: src.len }; } continue; }
+    const [semi, type] = st.ch[bar % st.ch.length], pcs = CH[type].map(iv => (st.key + semi + iv) % 12);
+    for (let b = 0; b < spb; b++) {
+      if (st.lead[b % st.lead.length] !== 'x') continue;
+      if (b % sdiv === 0) { // 拍点：挑离上一个音最近的和弦音
+        const cand = pool.map((n, i) => [Math.abs(i - idx) + rnd() * .9, i]).filter(([, i]) => pcs.includes(pool[i] % 12)).sort((p, q) => p[0] - q[0]);
+        if (cand.length) idx = cand[rnd() < .28 && cand[1] ? 1 : 0][1];
+      } else idx = Math.max(0, Math.min(pool.length - 1, idx + [-2, -1, -1, 1, 1, 2][Math.floor(rnd() * 6)]));
+      out[bar * spb + b] = { n: pool[idx], len: 1 };
+    }
+  }
+  const last = out.map((v, i) => v ? i : -1).filter(i => i >= 0).pop(); // 最后一个音回到主音
+  if (last >= 0) { const home = pool.filter(n => n % 12 === st.key % 12).sort((p, q) => Math.abs(p - out[last].n) - Math.abs(q - out[last].n))[0]; if (home) out[last].n = home; }
+  for (let i = 0; i < total; i++) if (out[i]) { let j = i + 1; while (j < total && !out[j] && j - i < sdiv * 2) j++; out[i].len = j - i; } // 每个音唱到下一个音为止
+  return out;
+}
 const Music = {
-  playing: false, step: 0, next: 0, iv: null,
+  playing: false, step: 0, next: 0, iv: null, st: null, lv: 0, lead: null,
   start(){
     if (!SET.music || !Au.ctx || this.playing) return;
-    this.playing = true; this.next = Au.ctx.currentTime + .08;
+    this.playing = true; this.next = Au.ctx.currentTime + .08; this.load(level);
     this.iv = setInterval(() => this.tick(), 25);
   },
   stop(){ this.playing = false; clearInterval(this.iv); },
-  bpm(){ return 112 + (level - 1) * 3; },
+  load(lv){ this.lv = lv; this.st = STYLES[Math.max(1, Math.min(STYLES.length, lv)) - 1]; this.step = 0; this.lead = makeLead(this.st, lv); },
   tick(){
     const c = Au.ctx; if (!c) return;
-    while (this.next < c.currentTime + .12) { this.play(this.step, this.next); this.next += 60 / this.bpm() / 4; this.step = (this.step + 1) % 64; }
-  },
-  play(s, t){
-    const bar = s >> 4, b = s & 15, [root, maj] = CHORDS[bar], tones = [0, maj ? 4 : 3, 7, 12, 12 + (maj ? 4 : 3)];
-    const out = Au.mus, L = level;
-    // 贝斯
-    if (b % 4 === 0) Au.tone(midi(root), .16, 'triangle', .5, t, 0, out);
-    else if (L >= 6 && b % 2 === 0) Au.tone(midi(root + 12), .1, 'triangle', .35, t, 0, out);
-    // 琶音
-    if (L >= 4 || b % 2 === 0) Au.tone(midi(root + 24 + tones[s % 3]), .06, 'square', .07, t, 0, out);
-    // 鼓
-    if (L >= 5) {
-      if (b === 0 || b === 8 || (L >= 12 && b === 10)) Au.tone(150, .09, 'sine', .7, t, .3, out);
-      if (b === 4 || b === 12) Au.noise(.08, .35, t, 'bandpass', 1800, out);
+    while (this.next < c.currentTime + .12) {
+      if (this.step % (this.st.spb || 16) === 0 && this.lv !== level) this.load(level); // 升级了：下一小节开头换成新一级的曲子
+      const st = this.st, sd = 60 / st.bpm / (st.sdiv || 4);
+      this.play(this.step, this.next + (st.sw && this.step % 2 ? sd * st.sw : 0), sd);
+      this.next += sd; this.step = (this.step + 1) % ((st.spb || 16) * 8);
     }
-    if (L >= 10 && (L >= 15 || b % 2 === 0)) Au.noise(.025, L >= 15 ? .16 : .12, t, 'highpass', 7000, out);
-    // 15 级起：额外打击层
-    if (L >= 15 && (b === 3 || b === 7 || b === 11 || b === 14 || b === 15)) Au.tone(b === 15 ? 140 : 210, .07, 'sine', .45, t, .6, out);
-    // 18 级：主旋律层
-    if (L >= 18) { const li = LEAD[bar][b]; if (li >= 0) Au.tone(midi(root + 36 + tones[li]), .1, 'square', .09, t, 0, out); }
+  },
+  play(step, t, sd){
+    const s = this.st, spb = s.spb || 16, bar = Math.floor(step / spb), b = step % spb, out = Au.mus;
+    const [semi, type] = s.ch[bar % s.ch.length], tones = CH[type], root = s.key + semi, at = pat => pat ? pat[b % pat.length] : '.';
+    let ch = at(s.bass);
+    if (ch !== '.') { // 低音
+      let n = root - 24 + (s.bo || 0) + ({ 0: 0, 5: 7, 8: 12, 3: tones[1], 7: 10 }[ch] || 0); while (n < 33) n += 12;
+      Au.tone(midi(n), sd * (s.bl || 1.8), s.bw || 'triangle', s.bv || .45, t, 0, out);
+    }
+    ch = at(s.arp);
+    if (ch === 'c') tones.slice(0, 3).forEach(iv => Au.tone(midi(root + (s.ao || 0) * 12 + iv), sd * (s.al || .9), s.aw || 'square', (s.av || .06) * .8, t, 0, out)); // 和弦一下
+    else if (ch !== '.') { // 分解和弦
+      const d = +ch, n = s.asc ? s.key + (s.ao || 0) * 12 + degSemi(s.sc, d) : root + (s.ao || 0) * 12 + tones[d % tones.length] + 12 * Math.floor(d / tones.length);
+      Au.tone(midi(n), sd * (s.al || .9), s.aw || 'square', s.av || .06, t, 0, out);
+    }
+    const L = this.lead[step];
+    if (L) { // 主旋律
+      Au.tone(midi(L.n), sd * L.len * .95, s.lw || 'square', s.lv || .085, t, 0, out);
+      if (s.loct) Au.tone(midi(L.n + 12), sd * L.len * .95, s.lw || 'square', (s.lv || .085) * .5, t, 0, out);
+    }
+    if (at(s.k) === 'x') Au.tone(150, .09, 'sine', s.kv || .7, t, .3, out);
+    if (at(s.s) === 'x') Au.noise(.08, s.sv || .35, t, 'bandpass', 1800, out);
+    if (at(s.h) === 'h') Au.noise(.025, s.hv || .12, t, 'highpass', 7000, out);
+    if (at(s.p) === 'p') Au.tone(s.pf || 420, .05, 'sine', s.pv || .35, t, .7, out);
   },
 };
 
@@ -1617,6 +1670,7 @@ function fxLevelUp(){
   const cls = level >= 18 ? 'max' : level >= 15 ? 'tense' : '';
   const list = [['LEVEL ' + level, 't-lv ' + cls]];
   if (level >= MAX_LEVEL) list.push(['MAX SPEED', 't-max']);
+  list.push(['BGM · ' + STYLES[Math.min(STYLES.length, level) - 1].n, 't-combo']); // 这一级的曲子名字
   banner('#lvBanner', list, level >= 18 ? .9 : .5);
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
