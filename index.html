@@ -753,23 +753,45 @@ function placePiece(t){
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
 }
-// —— 第 2 级专属：红色 Z 块占全部方块的 40% ——
-// 只改马上要用到的前 3 块（就是 NEXT 里显示的那 3 块），并记下原来是什么；一离开第 2 级就原样换回去，其他级别的概率不受影响。
-const RED_LEVEL = 2, RED_SHARE = .4;
-// 正常情况下 Z 本来就占 (1 - 特殊块占比) / 7，所以「强行换成 Z」的概率要比 80% 略低，合起来才正好是 80%
-const RED_FORCE = (RED_SHARE - (1 - SHARE_SUM) / 7) / (1 - (1 - SHARE_SUM) / 7);
-let qOrig = [];
-function syncRedLevel(){
-  if (level === RED_LEVEL) {
-    for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (rng() < RED_FORCE) queue[i] = 'Z'; }
-  } else {
+// —— 每一级的「主题方块」：从第 2 级起，每级有一种（或一组）方块出现得比平时多 ——
+// 只改马上要用到的前 3 块（就是 NEXT 里显示的那 3 块），并记下原来是什么；一换级就原样换回去，再按新一级的主题来。
+// 选的都是好放的普通块或者有帮助的特殊块，越往后速度越快，给的越是救场用的——只换口味，不加难度。
+// t = 主题方块的类型；share = 它们在这一级合计占全部方块的比例；n = 升级时显示的名字
+const LEVEL_FEATURE = {
+  2:  { t: ['Z'],      share: .40, n: 'RED RUSH' },     // 红色 Z 形
+  3:  { t: ['I'],      share: .30, n: 'LONG BARS' },    // 长条
+  4:  { t: ['O'],      share: .30, n: 'SQUARES' },      // 正方形
+  5:  { t: ['T'],      share: .30, n: 'T TIME' },       // T 形
+  6:  { t: ['D'],      share: .15, n: 'DOT RAIN' },     // 小点（补洞）
+  7:  { t: ['J', 'L'], share: .40, n: 'HOOKS' },        // J 形和 L 形
+  8:  { t: ['Y'],      share: .10, n: 'GARDEN' },       // 植物块
+  9:  { t: ['E'],      share: .12, n: 'PISTONS' },      // 伸缩块
+  10: { t: ['K'],      share: .12, n: 'GLASS HOUSE' },  // 易碎块
+  11: { t: ['C'],      share: .08, n: 'ICE AGE' },      // 冰晶块
+  12: { t: ['H'],      share: .12, n: 'REPAIR' },       // 补洞块
+  13: { t: ['R', 'P'], share: .14, n: 'LANDSLIDE' },    // 塌落块
+  14: { t: ['B'],      share: .12, n: 'DRILL SITE' },   // 震落块
+  15: { t: ['V'],      share: .12, n: 'BLADES' },       // 刀刃块
+  16: { t: ['D'],      share: .18, n: 'DOT STORM' },    // 小点，更多
+  17: { t: ['F'],      share: .05, n: 'WILDFIRE' },     // 火焰方块
+  18: { t: ['A', 'F'], share: .07, n: 'LAST STAND' },   // 牵连块 + 火焰方块
+};
+// 每种主题方块平时本来就有一定占比，所以「强行换成主题方块」的概率要比目标略低，合起来才正好是目标值
+const naturalShare = t => { const sp = SPECIAL_SHARE.find(([k]) => k === t); return sp ? sp[1] : (1 - SHARE_SUM) / 7; };
+for (const f of Object.values(LEVEL_FEATURE)) { const nat = f.t.reduce((a, t) => a + naturalShare(t), 0); f.force = Math.max(0, (f.share - nat) / (1 - nat)); }
+let qOrig = [], qLevel = 0;
+function syncLevelFeature(){
+  if (qLevel !== level) { // 换级了：把上一级改过的 NEXT 原样换回去
     for (let i = 0; i < qOrig.length; i++) if (qOrig[i] != null) { queue[i] = qOrig[i]; qOrig[i] = null; }
+    qLevel = level;
   }
+  const f = LEVEL_FEATURE[level]; if (!f) return;
+  for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (rng() < f.force) queue[i] = f.t[Math.floor(rng() * f.t.length)]; }
 }
 function takeNext(){
-  fillQueue(); syncRedLevel();
+  fillQueue(); syncLevelFeature();
   const t = queue.shift(); qOrig.shift();
-  syncRedLevel();
+  syncLevelFeature();
   return t;
 }
 function spawn(){
@@ -1055,7 +1077,7 @@ function startGame(m){
   Au.init();
   mode = m || mode;
   rng = mode === 'daily' ? mulberry32(dailySeed(todayKey())) : Math.random;
-  board = newBoard(); queue = []; qOrig = []; hold = null; holdUsed = false; frozenRows = 0;
+  board = newBoard(); queue = []; qOrig = []; qLevel = 0; hold = null; holdUsed = false; frozenRows = 0;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
   clearInput(); P.length = 0; A.length = 0;
@@ -1725,7 +1747,8 @@ function fxLevelUp(){
   const list = [['LEVEL ' + level, 't-lv ' + cls]];
   if (level >= MAX_LEVEL) list.push(['MAX SPEED', 't-max']);
   list.push(['BGM · ' + STYLES[Math.min(STYLES.length, level) - 1].n, 't-combo']); // 这一级的曲子名字
-  banner('#lvBanner', list, level >= 18 ? .9 : .5);
+  if (LEVEL_FEATURE[level]) list.push([LEVEL_FEATURE[level].n, 't-b2b']);              // 这一级的主题方块
+  banner('#lvBanner', list, level >= 18 ? 1.1 : .9);
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
 }
