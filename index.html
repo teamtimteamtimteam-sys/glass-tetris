@@ -300,6 +300,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   A:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',                  // 牵连块：金黄；AS = 带白芯的那一格
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
+  V:'#2fd85a', VS:'#c8ffb0', VS2:'#ffffff', VH:'#8a6a3a',     // 刀刃块：绿火刀身 + 白热的刀尖（标记格）+ 铜色刀柄
   B:'#f2a31b', BS:'#e84a3a', BS2:'#ff9a8a',                  // 震落块：琥珀色带斜纹的机身 + 红色的钻头格
   E:'#d94f9a', E2:'#f29cc6', ET:'#aeb7c8', ET2:'#e6ebf3',    // 伸缩块：洋红色的外筒 + 伸出来的两节银灰色内管（完整方块，同样的套筒纹理）
   Q:'#7b6657', Q2:'#a48d7b',                                // 重压块：铸铁般的深棕
@@ -351,23 +352,25 @@ SHAPES.R = SHAPES.S; SHAPES.P = SHAPES.Z;
 const LOOSE = t => t === 'R' || t === 'P';
 // B 震落块：竖着的三格钻机，第 0 格是钻头；锁定时钻头正下方那一列里悬空的方块全部落到底
 SHAPES.B = [[[1, 2], [1, 1], [1, 0]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[2, 1], [1, 1], [0, 1]]];
-const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 'B';
+// V 刀刃块：一把竖着的三格刀——第 0 格刀尖（标记格）、第 1 格刀身、第 2 格刀柄；锁定时切掉刀尖左右紧贴的方块，各最多一格
+SHAPES.V = SHAPES.B;
+const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 'B' || t === 'V';
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i) => t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i) => t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -443,6 +446,14 @@ function makeBlock(color, D, mark){
   if (mark === 'crumb') { // 塌落块：面上撒着深浅不一的碎点，像一捧松散的砂砾
     g.fillStyle = shade(color, .5); for (const [px, py] of [[3, 3], [6, 4], [4, 6], [7, 7], [2, 6]]) g.fillRect(px * u, py * u, u, u);
     g.fillStyle = shade(color, -.35); for (const [px, py] of [[5, 2], [2, 4], [7, 5], [5, 7], [3, 5]]) g.fillRect(px * u, py * u, u, u);
+  }
+  if (mark === 'blade' || mark === 'edge') { // 刀身 / 刀尖：绿火里一颗发亮的菱形刃芯；刀尖的芯更大更白
+    g.fillStyle = shade(color, .45); g.fillRect(4 * u, 2 * u, 2 * u, 6 * u); g.fillRect(2 * u, 4 * u, 6 * u, 2 * u); g.fillRect(3 * u, 3 * u, 4 * u, 4 * u);
+    g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, 2 * u, 2 * u);
+    if (mark === 'edge') { g.fillRect(4 * u, 3 * u, 2 * u, 4 * u); g.fillRect(3 * u, 4 * u, 4 * u, 2 * u); g.fillStyle = '#2fd85a'; for (const [px, py] of [[1, 1], [8, 1], [1, 8], [8, 8]]) g.fillRect(px * u, py * u, u, u); }
+  }
+  if (mark === 'hilt') { // 刀柄：铜色底上一个金色的护手方框
+    g.fillStyle = '#f2c14e'; g.fillRect(3 * u, 3 * u, 4 * u, u); g.fillRect(3 * u, 6 * u, 4 * u, u); g.fillRect(3 * u, 3 * u, u, 4 * u); g.fillRect(6 * u, 3 * u, u, 4 * u);
   }
   if (mark === 'hazard') { // 震落块机身：工程机械那种斜纹
     g.fillStyle = shade(color, -.28);
@@ -533,6 +544,12 @@ const Sfx = {
   heavy(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(70, .3, 'triangle', .6, now, .45); Au.tone(48, .4, 'sine', .5, now + .02, .6); Au.noise(.14, .22, now, 'lowpass', 500); },
   crush(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.2, .3, now, 'lowpass', 1600); Au.tone(180, .16, 'square', .1, now, .3); [0, .04, .09].forEach(d => Au.noise(.03, .14, now + d, 'bandpass', 2400)); },
   link(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(220, .35, 'sawtooth', .07, now, 5); [72, 76, 79, 84, 88].forEach((m, i) => Au.tone(midi(m), .07, 'square', .06, now + .04 + i * .04)); Au.noise(.2, .08, now + .1, 'highpass', 6000); },
+  slash(n, clang){ // 挥刀的"唰"一声；切到东西再加一下脆响，砍在钢上是"当"
+    if (!this.ok()) return; const now = Au.ctx.currentTime;
+    Au.noise(.13, .2, now, 'highpass', 3200); Au.tone(1800, .12, 'sawtooth', .05, now, .25);
+    if (n) [0, .05].slice(0, n).forEach((d, i) => Au.tone(midi(88 + i * 5), .07, 'square', .07, now + .06 + d));
+    if (clang) { Au.tone(620, .2, 'square', .07, now + .05); Au.tone(930, .16, 'square', .05, now + .05); }
+  },
   settle(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.14, .14, now, 'bandpass', 1800); [0, .04, .08].forEach((d, i) => Au.tone(260 - i * 50, .05, 'triangle', .1, now + d)); },
   rumble(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(62, .34, 'sawtooth', .16, now, .8); Au.noise(.3, .2, now, 'lowpass', 420); [0, .05, .1, .15, .2].forEach(d => Au.tone(95, .03, 'square', .08, now + d)); },
   extend(out){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(out ? 300 : 620, .09, 'square', .06, now, out ? 2.1 : .5); Au.tone(out ? 1300 : 900, .03, 'square', .06, now + .09); Au.noise(.03, .08, now + .09, 'bandpass', 3200); },
@@ -787,7 +804,7 @@ function rotateCW(){
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
-  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
+  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -957,6 +974,17 @@ function shakeColumn(x, fromY){
   }
   return moved;
 }
+// 刀刃：刀尖左、右紧贴的那一格如果有方块就切掉（各最多一格）；刀自己的格子不切，钢格切不动
+function bladeCut(cs){
+  const [sx, sy] = cs[0], cut = [], blocked = [];
+  for (const dx of [-1, 1]) {
+    const x = sx + dx; if (x < 0 || x >= COLS) continue;
+    const k = board[sy][x]; if (!k || cs.some(([ox, oy]) => ox === x && oy === sy)) continue;
+    if (k === 'US' || k === 'UC') { blocked.push([x, sy]); continue; }
+    board[sy][x] = null; cut.push([x, sy, k]);
+  }
+  return { cut, blocked };
+}
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
@@ -971,6 +999,7 @@ function lock(){
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
+  if (pieceT === 'V' && cs[0][1] >= 0) { const res = bladeCut(cs); fxBlade(cs[0], res); Sfx.slash(res.cut.length, res.blocked.length); } // 刀刃：切掉刀尖左右紧贴的方块
   if (LOOSE(pieceT)) { const fell = settleCells(cs); if (fell.length) { fxSettle(fell); Sfx.settle(); } } // 塌落：每一格各自掉到底
   if (pieceT === 'H') { // 补洞：塞子正下方这一列有空位，就脱离原形掉进最底下那个；原位置少一格
     const [sx, sy] = cs[0]; let ty = -1;
@@ -1182,6 +1211,7 @@ function render(){
       const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
       if (cur.t === 'F' && state === 'play') drawFlame(nowMs);
       if (cur.t === 'A' && state === 'play') drawAura(nowMs, cs);
+      if (cur.t === 'V' && state === 'play') drawAura(nowMs, cs, ['#fff', '#d6ffc0', '#5cff7a', '#12a83c']); // 刀刃块：整把刀裹着绿火
       cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
       ctx.globalAlpha = 1;
     }
@@ -1190,7 +1220,7 @@ function render(){
 }
 // 火焰方块下落时：头顶一团跳动的像素火舌；它落地会烧到的那几列微微发红，提前告诉玩家范围
 // 牵连块下落时：整块外面裹一圈往上窜的金色尖刺气焰
-function drawAura(t, cs){
+function drawAura(t, cs, pal = ['#fff', '#fff6b0', '#ffd23f', '#f2a900']){
   const u = Math.max(1, Math.round(CD / 8)), fr = Math.floor(t / 50);
   const xs = cs.map(([cx]) => cur.x + cx), ys = cs.map(([, cy]) => cur.y + cy);
   const x0 = Math.min(...xs) * CD, w = (Math.max(...xs) - Math.min(...xs) + 1) * CD;
@@ -1204,7 +1234,7 @@ function drawAura(t, cs){
       const side = xx < 0 ? -xx / (3 * u) : xx >= w ? (xx - w + u) / (3 * u) : 0;  // 两侧越往外越稀
       const spike = ((Math.floor(xx / u) + fr) % 4 === 0) ? .25 : 0;               // 每隔几列窜出一根尖刺
       if (n < h * 1.05 + side * .75 - spike) continue;
-      ctx.fillStyle = h < .25 ? (n > .6 ? '#fff' : '#fff6b0') : h < .6 ? '#ffd23f' : '#f2a900';
+      ctx.fillStyle = h < .25 ? (n > .6 ? pal[0] : pal[1]) : h < .6 ? pal[2] : pal[3];
       ctx.globalAlpha = 1 - h * .5;
       ctx.fillRect(x0 + xx, top - yy - u, u, u);
     }
@@ -1520,6 +1550,30 @@ function fxShakeCol(x, fromY, moved){
   shake(4, 220);
   if (moved.length) banner('#banner', [['DRILL!', 't-clear']], .4);
 }
+function fxBlade([sx, sy], res){
+  if (sy < HID) return;
+  const r = bRect(), c = CELL, u = px(c), Y = r.top + (sy - HID) * c, X = r.left + sx * c, GR = ['#fff', '#d6ffc0', '#5cff7a', '#12a83c'];
+  // 一道横扫三格的绿色刀光：中间白、两头绿，越扫越细
+  anim(170, (k, g) => {
+    const w = Math.round((c * 1.5 + c * 1.5 * Math.min(1, k * 3)) / u) * u, h = Math.max(u, Math.round((1 - k) * 3) * u), y = Y + c / 2 - h / 2;
+    g.globalAlpha = 1 - k; g.fillStyle = '#5cff7a'; g.fillRect(X + c / 2 - w, y, 2 * w, h);
+    g.fillStyle = '#fff'; g.fillRect(X + c / 2 - w * .55, y + (h > u ? u : 0), w * 1.1, Math.max(u, h - 2 * u)); g.globalAlpha = 1;
+  });
+  // 被切掉的格子：先一分为二往上下错开，再烧成绿火
+  for (const [x, y, k] of res.cut) {
+    const CX = r.left + x * c;
+    anim(200, (kk, g) => {
+      const d = Math.round(kk * c * .35 / u) * u;
+      g.globalAlpha = 1 - kk;
+      g.drawImage(blockCache[k], 0, 0, CD, CD / 2, CX, Y - d, c, c / 2); g.drawImage(blockCache[k], 0, CD / 2, CD, CD / 2, CX, Y + c / 2 + d, c, c / 2);
+      g.fillStyle = '#5cff7a'; g.fillRect(CX, Y + c / 2 - u / 2, c, u); g.globalAlpha = 1;
+    });
+    for (let i = 0; i < 14; i++) addP({ x: CX + rand(0, c), y: Y + rand(0, c), vx: rand(-120, 120) + (x - sx) * 160, vy: rand(-320, -80), g: -30, max: rand(260, 520), s: u * (i % 4 === 0 ? 2 : 1), c: i % 5 === 0 ? (COLORS[k] || '#fff') : GR[i % 4], delay: 50 });
+  }
+  // 砍在钢格上：只迸火星
+  for (const [x] of res.blocked) for (let i = 0; i < 8; i++) addP({ x: r.left + (x + .5) * c, y: Y + c / 2, vx: rand(-200, 200), vy: rand(-220, -30), g: 800, max: rand(160, 300), s: u, c: i % 2 ? '#fff' : '#ffd23f' });
+  if (res.cut.length) { shake(3, 130); banner('#banner', [['SLASH!', 't-clear']], .35); }
+}
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
@@ -1675,8 +1729,16 @@ function fxLevelUp(){
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
 }
-let emberT = 0, snowT = 0, auraT = 0;
+let emberT = 0, snowT = 0, auraT = 0, bladeT = 0;
 function updateFx(dt){
+  if (cur && cur.t === 'V' && state === 'play') { // 刀刃块下落时往上飘绿色火星
+    bladeT += dt;
+    while (bladeT > 36) {
+      bladeT -= 36;
+      const r = bRect(), c = CELL, u = px(c), cs = SHAPES.V[cur.r], [cx, cy] = cs[Math.floor(rand(0, cs.length))];
+      if (cur.y + cy >= HID - 1) addP({ x: r.left + (cur.x + cx + rand(0, 1)) * c, y: r.top + (cur.y + cy - HID + rand(0, 1)) * c, vx: rand(-20, 20), vy: rand(-240, -110), g: -40, max: rand(220, 420), s: u, c: ['#fff', '#d6ffc0', '#5cff7a', '#12a83c'][Math.floor(rand(0, 4))] });
+    }
+  }
   if (cur && cur.t === 'A' && state === 'play') { // 牵连块下落时身边往上飘金色光点
     auraT += dt;
     while (auraT > 40) {
