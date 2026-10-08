@@ -300,6 +300,8 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   A:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',                  // 牵连块：金黄；AS = 带白芯的那一格
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
+  M:'#2e3f7a', M2:'#6b86d6',                                 // 削顶块：深藏青色的锯条，上下两排青色锯齿
+  w:'#7b5cf0', wS:'#c9bcff', wS2:'#ffffff',                  // 换位块：靛紫色的吊钩 + 带上下箭头的标记格
   V:'#2fd85a', VS:'#c8ffb0', VS2:'#ffffff', VH:'#8a6a3a',     // 刀刃块：绿火刀身 + 白热的刀尖（标记格）+ 铜色刀柄
   B:'#f2a31b', BS:'#e84a3a', BS2:'#ff9a8a',                  // 震落块：琥珀色带斜纹的机身 + 红色的钻头格
   E:'#d94f9a', E2:'#f29cc6', ET:'#aeb7c8', ET2:'#e6ebf3',    // 伸缩块：洋红色的外筒 + 伸出来的两节银灰色内管（完整方块，同样的套筒纹理）
@@ -354,7 +356,13 @@ const LOOSE = t => t === 'R' || t === 'P';
 SHAPES.B = [[[1, 2], [1, 1], [1, 0]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[2, 1], [1, 1], [0, 1]]];
 // V 刀刃块：一把竖着的三格刀——第 0 格刀尖（标记格）、第 1 格刀身、第 2 格刀柄；锁定时切掉刀尖左右紧贴的方块，各最多一格
 SHAPES.V = SHAPES.B;
-const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 'B' || t === 'V';
+// M 削顶块：三格直条。它的格子被消行消掉时，那一格所在的列在消行之后再削掉最顶上一格（每列最多一格）
+//   横放三格在同一行，一次削三列；竖放三格在同一列，只削这一列
+SHAPES.M = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
+// w 换位块：J 形的吊钩，第 0 格（钩尖）是标记格。锁定时标记格那一列如果有被盖住的空洞，
+//   就把这一列最顶上的一格方块搬进最底下的空洞（只搬一次；没有洞不触发），然后整块落稳
+SHAPES.w = [[[0, 0], [0, 1], [1, 1], [2, 1]], [[2, 0], [1, 0], [1, 1], [1, 2]], [[2, 2], [2, 1], [1, 1], [0, 1]], [[0, 2], [1, 2], [1, 1], [1, 0]]];
+const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 'B' || t === 'V' || t === 'w';
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
@@ -362,15 +370,15 @@ const cellKey = (t, i) => t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
 const fallSkin = (t, i, blink) => t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .03]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -454,6 +462,15 @@ function makeBlock(color, D, mark){
   }
   if (mark === 'hilt') { // 刀柄：铜色底上一个金色的护手方框
     g.fillStyle = '#f2c14e'; g.fillRect(3 * u, 3 * u, 4 * u, u); g.fillRect(3 * u, 6 * u, 4 * u, u); g.fillRect(3 * u, 3 * u, u, 4 * u); g.fillRect(6 * u, 3 * u, u, 4 * u);
+  }
+  if (mark === 'saw') { // 削顶块：上下各一排亮青色的锯齿，中间一道亮线
+    g.fillStyle = '#7fe8ff';
+    for (let xx = 1; xx < 9; xx++) { g.fillRect(xx * u, (xx % 2 ? 1 : 2) * u, u, u); g.fillRect(xx * u, (xx % 2 ? 8 : 7) * u, u, u); }
+    g.fillStyle = shade(color, .45); g.fillRect(2 * u, 4 * u, 6 * u, 2 * u);
+  }
+  if (mark === 'swap') { // 换位标记格：左边一个朝上的箭头、右边一个朝下的箭头
+    g.fillStyle = '#5a3fd0';
+    for (const [px, py] of [[3, 2], [2, 3], [3, 3], [4, 3], [3, 4], [3, 5], [3, 6], [3, 7], [6, 7], [5, 6], [6, 6], [7, 6], [6, 5], [6, 4], [6, 3], [6, 2]]) g.fillRect(px * u, py * u, u, u);
   }
   if (mark === 'hazard') { // 震落块机身：工程机械那种斜纹
     g.fillStyle = shade(color, -.28);
@@ -550,6 +567,8 @@ const Sfx = {
     if (n) [0, .05].slice(0, n).forEach((d, i) => Au.tone(midi(88 + i * 5), .07, 'square', .07, now + .06 + d));
     if (clang) { Au.tone(620, .2, 'square', .07, now + .05); Au.tone(930, .16, 'square', .05, now + .05); }
   },
+  trim(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .16, 'sawtooth', .06, now, .5); [0, .03, .06, .09].forEach(d => Au.noise(.02, .12, now + d, 'bandpass', 2600)); },
+  swap(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(880, .09, 'square', .06, now, 1.5); Au.tone(660, .16, 'triangle', .1, now + .09, .4); Au.tone(196, .08, 'triangle', .14, now + .24); },
   settle(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.14, .14, now, 'bandpass', 1800); [0, .04, .08].forEach((d, i) => Au.tone(260 - i * 50, .05, 'triangle', .1, now + d)); },
   rumble(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(62, .34, 'sawtooth', .16, now, .8); Au.noise(.3, .2, now, 'lowpass', 420); [0, .05, .1, .15, .2].forEach(d => Au.tone(95, .03, 'square', .08, now + d)); },
   extend(out){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(out ? 300 : 620, .09, 'square', .06, now, out ? 2.1 : .5); Au.tone(out ? 1300 : 900, .03, 'square', .06, now + .09); Au.noise(.03, .08, now + .09, 'bandpass', 3200); },
@@ -826,7 +845,7 @@ function rotateCW(){
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
-  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
+  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' || cur.t === 'M' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -1007,12 +1026,32 @@ function bladeCut(cs){
   }
   return { cut, blocked };
 }
+// 削顶：这些列各自最顶上的那一格（如果有）清掉；清的都是露在最上面的格子，不会在内部挖洞
+function trimTops(cols){
+  const gone = [];
+  for (const x of cols) for (let y = 0; y < TROWS; y++) if (board[y][x]) { gone.push([x, y, board[y][x]]); board[y][x] = null; break; }
+  return gone;
+}
+// 换位：标记格那一列里、整块下方——最顶上的一格方块如果下面还有空位，就把它搬到最底下那个空位；然后整块落稳（最顶上是钢格则不触发）
+function swapDown(){
+  const cells = SHAPES.w[cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]), sx = cells[0][0];
+  const fromY = Math.max(...cells.filter(([x]) => x === sx).map(([, y]) => y));
+  let top = -1; for (let y = Math.max(0, fromY + 1); y < TROWS; y++) if (board[y][sx]) { top = y; break; }
+  if (top < 0 || board[top][sx] === 'US' || board[top][sx] === 'UC') return false; // 这一列是空的，或者最顶上是搬不动的钢格：不触发
+  let hole = -1; for (let y = TROWS - 1; y > top; y--) if (!board[y][sx]) { hole = y; break; }
+  if (hole < 0) return false;
+  const k = board[top][sx]; board[top][sx] = null; board[hole][sx] = k;
+  fxSwap(sx, top, hole, k); Sfx.swap();
+  cur.y = ghostY();
+  return true;
+}
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
   if (cur.t !== 'D') breakGlassUnder(); // 压在玻璃格上：玻璃碎，这块方块继续落稳，然后才结算
   if (cur.t === 'Q') heavyCrush();
   if (cur.t === 'B') drillDown();
+  if (cur.t === 'w') swapDown();
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
   const pieceT = cur.t;
@@ -1038,7 +1077,11 @@ function lock(){
     // 牵连：被消的行里有金色的牵连格 → 那一行上下各三层的方块全部一起消掉（这些行也跟着塌下来）
     const blast = linkBlastRows(full), blastSnap = blast.rows.map(y => ({ y, cells: board[y].slice() }));
     const blasted = blastSnap.reduce((a, q) => a + q.cells.filter(Boolean).length, 0);
+    // 削顶：被消掉的行里每一个削顶格，记下它在哪一列；等消行、塌落都做完，再把这些列最顶上的一格削掉
+    const trimCols = [...new Set(full.flatMap(y => board[y].map((k, x) => k === 'M' ? x : -1).filter(x => x >= 0)))];
     const steelKept = clearRows(full.concat(blast.rows).sort((a, b) => a - b));
+    const trimmed = trimTops(trimCols);
+    if (trimmed.length) { fxTrim(trimmed); Sfx.trim(); }
     if (blast.cores.length) { fxLinkBlast(blastSnap, blast.cores); Sfx.link(); score += blasted * 10 * level; }
     frozenRows = 0;
     combo++; maxCombo = Math.max(maxCombo, combo);
@@ -1595,6 +1638,32 @@ function fxBlade([sx, sy], res){
   // 砍在钢格上：只迸火星
   for (const [x] of res.blocked) for (let i = 0; i < 8; i++) addP({ x: r.left + (x + .5) * c, y: Y + c / 2, vx: rand(-200, 200), vy: rand(-220, -30), g: 800, max: rand(160, 300), s: u, c: i % 2 ? '#fff' : '#ffd23f' });
   if (res.cut.length) { shake(3, 130); banner('#banner', [['SLASH!', 't-clear']], .35); }
+}
+function fxTrim(trimmed){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [x, y, k] of trimmed) {
+    if (y < HID) continue;
+    const X = r.left + x * c, Y = r.top + (y - HID) * c;
+    anim(220, (kk, g) => { // 一条青色锯线横着锯过去，被削下来的那一格往上飘走、变淡
+      g.globalAlpha = 1 - kk; g.drawImage(blockCache[k], X, Y - Math.round(kk * c * .8), c, c);
+      g.fillStyle = '#7fe8ff'; const sw = Math.round(c * Math.min(1, kk * 2.5) / u) * u;
+      for (let i = 0; i < sw; i += 2 * u) g.fillRect(X + i, Y + c - u - ((i / u + Math.floor(kk * 10)) % 2 ? u : 0), 2 * u, u);
+      g.globalAlpha = 1;
+    });
+    for (let i = 0; i < 10; i++) addP({ x: X + rand(0, c), y: Y + c * .8, vx: rand(-150, 150), vy: rand(-220, -40), g: 600, max: rand(200, 400), s: u, c: i % 3 === 0 ? '#7fe8ff' : (COLORS[k] || '#fff'), delay: 40 });
+  }
+  banner('#banner', [['TRIM!', 't-clear']], .35);
+}
+function fxSwap(x, top, hole, k){
+  const r = bRect(), c = CELL, u = px(c), X = r.left + x * c, Y0 = r.top + (Math.max(top, HID) - HID) * c, Y1 = r.top + (hole - HID) * c;
+  anim(240, (kk, g) => { // 这一列里一串往下跑的紫色箭头，表示方块从顶上被送到底下
+    g.globalAlpha = 1 - kk; g.fillStyle = '#c9bcff';
+    for (let yy = Y0; yy < Y1 + c; yy += 3 * u) { const o = Math.floor(kk * 9) % 3 * u; g.fillRect(X + c / 2 - u / 2, yy + o, u, 2 * u); g.fillRect(X + c / 2 - 3 * u / 2, yy + o + u, 3 * u, u); }
+    g.globalAlpha = 1;
+  });
+  fxSlideCells([[x, top, hole, k]], 200, '#c9bcff');
+  for (let i = 0; i < 8; i++) addP({ x: X + rand(0, c), y: Y0 + c / 2, vx: rand(-120, 120), vy: rand(-180, -30), g: 500, max: rand(180, 320), s: u, c: i % 2 ? '#c9bcff' : '#fff' });
+  banner('#banner', [['SWAP!', 't-clear']], .4);
 }
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
