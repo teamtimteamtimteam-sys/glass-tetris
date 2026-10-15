@@ -354,7 +354,7 @@ SHAPES.R = SHAPES.S; SHAPES.P = SHAPES.Z;
 const LOOSE = t => t === 'R' || t === 'P';
 // B 震落块：竖着的三格钻机，第 0 格是钻头；锁定时钻头正下方那一列里悬空的方块全部落到底
 SHAPES.B = [[[1, 2], [1, 1], [1, 0]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[2, 1], [1, 1], [0, 1]]];
-// V 刀刃块：一把竖着的三格刀——第 0 格刀尖、第 1 格刀身、第 2 格刀柄；锁定时把它外围一圈 12 格（上下左右和斜角）里的方块全部斩掉
+// V 刀刃块：一把竖着的三格刀——第 0 格刀尖、第 1 格刀身、第 2 格刀柄；锁定时把它外围一圈（上、左、右和斜角，不含底下那一排）里的方块全部斩掉
 SHAPES.V = SHAPES.B;
 // M 削顶块：三格直条。只要它有格子参与了一次消行，正常消行之后，再把当前堆积最上面的三行整行消掉
 SHAPES.M = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
@@ -377,7 +377,7 @@ SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1],
 const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .03]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -1015,12 +1015,12 @@ function shakeColumn(x, fromY){
   }
   return moved;
 }
-// 刀刃：刀身外围一圈（3 格直条外面一圈正好 12 格）里的方块全部斩掉，钢格也不例外；刀自己的格子不动
+// 刀刃：刀身外围一圈里的方块全部斩掉（钢格也不例外），但刀底下那一排不斩——那是托住刀的地方，斩了刀就悬空了；刀自己的格子不动
 function bladeCut(cs){
-  const own = new Set(cs.map(([x, y]) => y * COLS + x)), seen = new Set(), cut = [];
+  const own = new Set(cs.map(([x, y]) => y * COLS + x)), seen = new Set(), cut = [], bottom = Math.max(...cs.map(([, y]) => y));
   for (const [x0, y0] of cs) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
     const x = x0 + dx, y = y0 + dy, id = y * COLS + x;
-    if (x < 0 || x >= COLS || y < 0 || y >= TROWS || own.has(id) || seen.has(id)) continue;
+    if (x < 0 || x >= COLS || y < 0 || y >= TROWS || y > bottom || own.has(id) || seen.has(id)) continue; // y > bottom：刀底下那一排，不斩
     seen.add(id);
     if (board[y][x]) { cut.push([x, y, board[y][x]]); board[y][x] = null; }
   }
@@ -1623,7 +1623,7 @@ function fxBlade(cs, res){
   const r = bRect(), c = CELL, u = px(c), GR = ['#fff', '#d6ffc0', '#5cff7a', '#12a83c'];
   const xs = cs.map(([x]) => x), ys = cs.map(([, y]) => y);
   const ax0 = r.left + (Math.min(...xs) - 1) * c, ay0 = r.top + (Math.min(...ys) - 1 - HID) * c;
-  const aw = (Math.max(...xs) - Math.min(...xs) + 3) * c, ah = (Math.max(...ys) - Math.min(...ys) + 3) * c, cx = ax0 + aw / 2, cy = ay0 + ah / 2;
+  const aw = (Math.max(...xs) - Math.min(...xs) + 3) * c, ah = (Math.max(...ys) - Math.min(...ys) + 2) * c, cx = ax0 + aw / 2, cy = ay0 + ah / 2; // 外框不含刀底下那一排
   // 1) 四把绿火刀从棋盘外面先后斩进来，刀锋穿过这一圈
   [[r.left - 4 * c, cy - 2.4 * c], [r.right + 4 * c, cy - 1.2 * c], [r.left - 4 * c, cy + 2.6 * c], [r.right + 4 * c, cy + 1.6 * c]].forEach(([x0, y0], i) => {
     const ex = cx + (cx - x0) * .45, ey = cy + (cy - y0) * .45, dx = ex - x0, dy = ey - y0, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
