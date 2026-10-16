@@ -380,7 +380,7 @@ SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1],
 const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005], ['a', .01]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005], ['a', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -806,7 +806,11 @@ const LEVEL_FEATURE = {
 };
 // 每种主题方块平时本来就有一定占比，所以「强行换成主题方块」的概率要比目标略低，合起来才正好是目标值
 const naturalShare = t => { const sp = SPECIAL_SHARE.find(([k]) => k === t); return sp ? sp[1] : (1 - SHARE_SUM) / 7; };
-for (const f of Object.values(LEVEL_FEATURE)) { const nat = f.t.reduce((a, t) => a + naturalShare(t), 0); f.force = Math.max(0, (f.share - nat) / (1 - nat)); }
+// 只替换普通方块（特殊方块不动，保证它们在每一级都是设定的概率）：能被换掉的是「不是主题方块的普通方块」
+for (const f of Object.values(LEVEL_FEATURE)) {
+  const nat = f.t.reduce((a, t) => a + naturalShare(t), 0), natReg = f.t.filter(t => !isSpecial(t)).reduce((a, t) => a + naturalShare(t), 0);
+  f.force = Math.max(0, Math.min(1, (f.share - nat) / ((1 - SHARE_SUM) - natReg)));
+}
 let qOrig = [], qLevel = 0;
 function syncLevelFeature(){
   if (qLevel !== level) { // 换级了：把上一级改过的 NEXT 原样换回去
@@ -814,7 +818,7 @@ function syncLevelFeature(){
     qLevel = level;
   }
   const f = LEVEL_FEATURE[level]; if (!f) return;
-  for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (rng() < f.force) queue[i] = f.t[Math.floor(rng() * f.t.length)]; }
+  for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (!isSpecial(queue[i]) && !f.t.includes(queue[i]) && rng() < f.force) queue[i] = f.t[Math.floor(rng() * f.t.length)]; }
 }
 function takeNext(){
   fillQueue(); syncLevelFeature();
@@ -1072,7 +1076,7 @@ function arrowColumn(){
   cur = null; combo = 0;
   scene = { t: 0, x, cells, side: x < COLS / 2 ? -1 : 1, step: 0 };
   state = 'cutscene';
-  banner('#banner', [[pixelTextImg('肥玲小猪帮你作弊', COLS * CELL * 1.25), 't-cn']], 1.3); // 放大到两倍，可以比棋盘略宽
+  banner('#banner', [[pixelTextImg('肥玲小猪', COLS * CELL), 't-cn'], [pixelTextImg('帮你作弊', COLS * CELL), 't-cn']], 1.3); // 拆成两行，每行能放大到三倍
   Sfx.oink();
 }
 function updateScene(dt){
