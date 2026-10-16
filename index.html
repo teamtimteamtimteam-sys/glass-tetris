@@ -300,6 +300,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   A:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',                  // 牵连块：金黄；AS = 带白芯的那一格
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
+  a:'#ff6fb5', a2:'#ffc0e0',                                 // 箭头方块：粉色底上一个白色的朝下箭头（小猪的颜色）
   M:'#2e3f7a', M2:'#6b86d6',                                 // 削顶块：深藏青色的锯条，上下两排青色锯齿
   w:'#7b5cf0', wS:'#c9bcff', wS2:'#ffffff',                  // 换位块：靛紫色的吊钩 + 带上下箭头的标记格
   V:'#2fd85a', VS:'#c8ffb0', VS2:'#ffffff', VH:'#8a6a3a',     // 刀刃块：绿火刀身 + 白热的刀尖（标记格）+ 铜色刀柄
@@ -329,6 +330,8 @@ const KI = { '01':[[0,0],[-2,0],[1,0],[-2,-1],[1,2]], '12':[[0,0],[-1,0],[2,0],[
 
 // 特殊方块：D 单格小点（落地后穿过方块沉到该列最低的空位），F 2×2 火焰方块（落地后烧光它经过的两列和左右各一列）
 SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
+// a 箭头方块：一格，不能转；落地后自己消失，它所在的整列被清空——一只像素小猪跑进来把这一列铲走
+SHAPES.a = [0, 1, 2, 3].map(() => [[0, 0]]);
 SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // C 三格冰晶块：中间一格、上面一格、左边一格；含有冰晶的行填满了也先不消，等下一次消行时一起结算
 SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0], [0, 0]], [[0, 0], [1, 1], [1, 0]]];
@@ -369,15 +372,15 @@ const cellKey = (t, i) => t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
 const fallSkin = (t, i, blink) => t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005]];
+const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005], ['a', .01]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -470,6 +473,10 @@ function makeBlock(color, D, mark){
   if (mark === 'swap') { // 换位标记格：左边一个朝上的箭头、右边一个朝下的箭头
     g.fillStyle = '#5a3fd0';
     for (const [px, py] of [[3, 2], [2, 3], [3, 3], [4, 3], [3, 4], [3, 5], [3, 6], [3, 7], [6, 7], [5, 6], [6, 6], [7, 6], [6, 5], [6, 4], [6, 3], [6, 2]]) g.fillRect(px * u, py * u, u, u);
+  }
+  if (mark === 'arrow') { // 箭头方块：一个白色的大箭头，朝下指着要铲的那一列
+    g.fillStyle = '#fff';
+    g.fillRect(4 * u, 2 * u, 2 * u, 3 * u); g.fillRect(2 * u, 5 * u, 6 * u, u); g.fillRect(3 * u, 6 * u, 4 * u, u); g.fillRect(4 * u, 7 * u, 2 * u, u);
   }
   if (mark === 'hazard') { // 震落块机身：工程机械那种斜纹
     g.fillStyle = shade(color, -.28);
@@ -568,6 +575,9 @@ const Sfx = {
   },
   trim(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .16, 'sawtooth', .06, now, .5); [0, .03, .06, .09].forEach(d => Au.noise(.02, .12, now + d, 'bandpass', 2600)); },
   swap(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(880, .09, 'square', .06, now, 1.5); Au.tone(660, .16, 'triangle', .1, now + .09, .4); Au.tone(196, .08, 'triangle', .14, now + .24); },
+  oink(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [0, .16].forEach(d => { Au.tone(420, .1, 'sawtooth', .07, now + d, .62); Au.tone(260, .1, 'square', .04, now + d, .7); }); },
+  step(){ if (this.ok()) Au.tone(180, .03, 'square', .035); },
+  scoop(i){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.06, .14, now, 'bandpass', 1400 + (i % 4) * 300); Au.tone(500 + i * 40, .05, 'triangle', .06, now + .02, 1.6); },
   settle(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.14, .14, now, 'bandpass', 1800); [0, .04, .08].forEach((d, i) => Au.tone(260 - i * 50, .05, 'triangle', .1, now + d)); },
   rumble(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(62, .34, 'sawtooth', .16, now, .8); Au.noise(.3, .2, now, 'lowpass', 420); [0, .05, .1, .15, .2].forEach(d => Au.tone(95, .03, 'square', .08, now + d)); },
   extend(out){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(out ? 300 : 620, .09, 'square', .06, now, out ? 2.1 : .5); Au.tone(out ? 1300 : 900, .03, 'square', .06, now + .09); Au.noise(.03, .08, now + .09, 'bandpass', 3200); },
@@ -766,7 +776,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -840,7 +850,7 @@ function toggleLen(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F') return false;
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a') return false;
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
@@ -1047,8 +1057,38 @@ function swapTopBottom(){
   for (let i = 0; i < k; i++) { board[top + i] = lower[i]; board[TROWS - k + i] = upper[i]; }
   return { k, top, upper: upper.map(r => r.slice()), lower: lower.map(r => r.slice()) };
 }
+// —— 箭头方块 + 小猪过场 ——
+// 落地：箭头自己消失，这一列整列清空（逻辑上立刻清掉），然后进入约 1.25 秒的过场：
+// 小猪从近的那一边跑进来，站在这一列旁边一块一块往外铲（画面上这一列的方块按时间一块块飞走），再跑出去。
+// 过场期间下一个方块不出来、不能操作；音乐照常放，结束后直接接着玩，不暂停、不倒数。
+const SCENE_MS = 1250, SCENE_IN = 330, SCENE_DIG = 960;
+let scene = null;
+function arrowColumn(){
+  const x = cur.x, ay = cur.y;
+  growPlants([[x, ay]]);
+  const cells = [];
+  for (let y = TROWS - 1; y >= 0; y--) if (board[y][x]) { cells.push({ y, k: board[y][x], gone: false }); board[y][x] = null; } // 从下往上排：小猪先铲底下的
+  score += cells.length * 10 * level;
+  cur = null; combo = 0;
+  scene = { t: 0, x, cells, side: x < COLS / 2 ? -1 : 1, step: 0 };
+  state = 'cutscene';
+  banner('#banner', [[pixelTextImg('肥玲小猪帮你作弊', COLS * CELL * 1.25), 't-cn']], 1.3); // 放大到两倍，可以比棋盘略宽
+  Sfx.oink();
+}
+function updateScene(dt){
+  scene.t += dt;
+  const n = scene.cells.length, t = scene.t;
+  scene.cells.forEach((q, i) => { // 到点的方块被铲飞
+    if (q.gone || t < SCENE_IN + (i + .5) * (SCENE_DIG - SCENE_IN) / Math.max(1, n)) return;
+    q.gone = true; fxScoop(scene.x, q.y, q.k, scene.side); Sfx.scoop(i);
+  });
+  const running = t < SCENE_IN || t > SCENE_DIG;
+  if (running && Math.floor(t / 70) !== scene.step) { scene.step = Math.floor(t / 70); Sfx.step(); }
+  if (t >= SCENE_MS) { scene = null; state = 'play'; spawn(); }
+}
 let frozenRows = 0;
 function lock(){
+  if (cur.t === 'a') { arrowColumn(); return; }
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
   if (cur.t !== 'D') breakGlassUnder(); // 压在玻璃格上：玻璃碎，这块方块继续落稳，然后才结算
   if (cur.t === 'Q') heavyCrush();
@@ -1127,7 +1167,7 @@ function startGame(m){
   board = newBoard(); queue = []; qOrig = []; qLevel = 0; hold = null; holdUsed = false; frozenRows = 0;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
-  clearInput(); P.length = 0; A.length = 0;
+  clearInput(); P.length = 0; A.length = 0; scene = null; pausedFrom = null;
   $('#timeLbl').textContent = mode === 'daily' ? 'LEFT' : 'TIME';
   showScreen(null);
   state = 'play';
@@ -1175,14 +1215,15 @@ function endRun(reason){
 }
 let pausedFrom = null;
 function pauseGame(){
-  if (state === 'play' || state === 'countdown') {
+  if (state === 'play' || state === 'countdown' || state === 'cutscene') {
+    if (state !== 'countdown') pausedFrom = state; // 倒数中又被打断：保留原来要回到的状态
     state = 'pause'; clearInput(); Music.stop(); showScreen('sPause');
   }
 }
 function resumeGame(){
   if (state !== 'pause') return;
   showScreen(null); Au.init();
-  state = 'countdown'; countdown(['3', '2', '1', 'GO'], () => { if (state === 'countdown') { state = 'play'; Music.start(); } });
+  state = 'countdown'; countdown(['3', '2', '1', 'GO'], () => { if (state === 'countdown') { state = pausedFrom === 'cutscene' && scene ? 'cutscene' : 'play'; Music.start(); } });
 }
 let countTimer = null;
 function countdown(seq, done){
@@ -1230,6 +1271,8 @@ function update(dt){
       lockTimer += dt;
       if (lockTimer >= LOCK_DELAY) lock();
     }
+  } else if (state === 'cutscene' && scene) {
+    playTime += dt; updateScene(dt);
   } else if (state === 'dying') {
     dieT += dt;
     if (dieT >= 700) endRun('top');
@@ -1279,6 +1322,7 @@ function render(){
       const nowMs = performance.now();
       const fireSkin = ['F', 'F2', 'F3'][Math.floor(nowMs / 80) % 3], blink = isSpecial(cur.t) && Math.floor(nowMs / 110) % 2; // 特殊方块闪烁；火焰方块三帧火色轮换
       if (cur.t === 'F' && state === 'play') drawFlame(nowMs);
+      if (cur.t === 'a' && state === 'play') { ctx.fillStyle = `rgba(255,111,181,${.08 + .04 * (Math.floor(nowMs / 160) % 2)})`; ctx.fillRect(cur.x * CD, 0, CD, ROWS * CD); } // 箭头要铲的那一列
       if (cur.t === 'A' && state === 'play') drawAura(nowMs, cs);
       if (cur.t === 'V' && state === 'play') drawAura(nowMs, cs, ['#fff', '#d6ffc0', '#5cff7a', '#12a83c']); // 刀刃块：整把刀裹着绿火
       cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
@@ -1730,6 +1774,46 @@ function fxSwapRows({ k, top, upper, lower }){
   shake(4, 200);
   setTimeout(() => banner('#banner', [['SWAP!', 't-clear'], [k + (k > 1 ? ' ROWS' : ' ROW'), 't-combo']], .5), 420);
 }
+// 小猪：14×11 的像素画，朝右。o 描边 p 粉 s 鼻子 n 鼻孔 e 眼睛；最后两行是腿，跑动时两帧交替
+const PIG = ['......oo..oo..', '.....opo.opo..', '...ooppppppoo.', '..opppppppppo.', '.oppppppppepso', 'oppppppppppssn', 'oppppppppppsso', '.opppppppppoo.', '..oppppppppo..'];
+const PIG_LEGS = [['..op.op.op.op.', '..oo.oo.oo.oo.'], ['...op.op.op.o.', '..oo..oo..oo..']];
+const PIG_PAL = { o: '#c2507e', p: '#ffa6c9', s: '#ff7fb0', n: '#7a2a4a', e: '#2a1a2a' };
+function drawSprite(g, rows, x, y, s, flip){
+  const w = rows[0].length;
+  rows.forEach((row, j) => { for (let i = 0; i < w; i++) { const ch = row[i]; if (ch === '.' || ch === ' ') continue; g.fillStyle = PIG_PAL[ch]; g.fillRect(Math.round(x + (flip ? w - 1 - i : i) * s), Math.round(y + j * s), s, s); } });
+}
+function drawPigScene(g){
+  const r = bRect(), c = CELL, s = Math.max(2, Math.round(c / 6)), t = scene.t, pw = 14 * s, ph = 11 * s;
+  const colL = r.left + scene.x * c, colR = colL + c, ground = r.bottom - ph;
+  // 还没被铲走的那几块，照原样画在这一列里
+  for (const q of scene.cells) if (!q.gone && q.y >= HID) g.drawImage(blockCache[q.k], colL, r.top + (q.y - HID) * c, c, c);
+  // 小猪的位置：从近的那一边棋盘外跑到这一列旁边，铲完再原路跑出去
+  const outX = scene.side < 0 ? r.left - pw - 20 : r.right + 20, standX = scene.side < 0 ? colL - pw + s : colR - s;
+  let x, faceRight, legs = Math.floor(t / 70) % 2, dig = false;
+  if (t < SCENE_IN) { const k = t / SCENE_IN; x = outX + (standX - outX) * (1 - (1 - k) * (1 - k)); faceRight = scene.side < 0; }
+  else if (t < SCENE_DIG) { x = standX; faceRight = scene.side < 0; legs = 0; dig = true; }
+  else { const k = (t - SCENE_DIG) / (SCENE_MS - SCENE_DIG); x = standX + (outX - standX) * k * k; faceRight = scene.side > 0; }
+  const bob = dig ? (Math.floor(t / 80) % 2) * s : (legs ? -s : 0);
+  // 铲子：手柄从小猪身前斜伸进这一列，铲头一下高一下低
+  if (dig) {
+    const up = Math.floor(t / 80) % 2, dir = faceRight ? 1 : -1, hx = x + (faceRight ? pw - 2 * s : 2 * s), hy = ground + 4 * s + bob;
+    g.fillStyle = '#8a5a2a'; for (let i = 0; i < 6; i++) g.fillRect(Math.round(hx + dir * i * s), Math.round(hy + i * s * (up ? .2 : .8)), s, s);
+    g.fillStyle = '#d6dbe8'; g.fillRect(Math.round(hx + dir * 6 * s - (dir < 0 ? 2 * s : 0)), Math.round(hy + 6 * s * (up ? .2 : .8) - s), 3 * s, 2 * s);
+  }
+  drawSprite(g, PIG, x, ground + bob, s, !faceRight);
+  drawSprite(g, PIG_LEGS[legs], x, ground + bob + 9 * s, s, !faceRight);
+  if (t < SCENE_IN || t > SCENE_DIG) for (let i = 0; i < 2; i++) addP({ x: x + pw / 2 + rand(-pw / 3, pw / 3), y: r.bottom - s, vx: rand(-40, 40) - (faceRight ? 60 : -60), vy: rand(-60, -10), max: rand(120, 220), s: s, c: '#c9cde0' }); // 脚下扬起的灰
+}
+// 一块方块被铲飞：朝小猪身后的方向抛出去，转着落下
+function fxScoop(x, y, k, side){
+  if (y < HID) return;
+  const r = bRect(), c = CELL, u = px(c), X0 = r.left + x * c, Y0 = r.top + (y - HID) * c, vx = -side * rand(260, 420), vy = rand(-560, -380);
+  anim(520, (kk, g) => {
+    const tt = kk * .52, X = X0 + vx * tt, Y = Y0 + vy * tt + 1400 * tt * tt;
+    g.globalAlpha = 1 - kk * .6; g.save(); g.translate(X + c / 2, Y + c / 2); g.rotate(kk * 6 * -side); g.drawImage(blockCache[k], -c / 2, -c / 2, c, c); g.restore(); g.globalAlpha = 1;
+  });
+  for (let i = 0; i < 5; i++) addP({ x: X0 + c / 2, y: Y0 + c / 2, vx: -side * rand(40, 180), vy: rand(-200, -40), g: 600, max: rand(160, 300), s: u, c: i % 2 ? (COLORS[k] || '#fff') : '#fff' });
+}
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
@@ -1935,11 +2019,12 @@ function updateFx(dt){
   else if (wrapEl.style.translate) wrapEl.style.translate = '';
 }
 function drawFx(){
-  const active = P.length || A.length;
+  const active = P.length || A.length || scene;
   if (!active && !fxDirty) return;
   fxDirty = !!active;
   fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   fctx.clearRect(0, 0, fxW, fxH);
+  if (scene) drawPigScene(fctx);
   for (const a of A) if (a.t >= 0) a.fn(Math.min(1, a.t / a.dur), fctx);
   for (const p of P) {
     if (p.delay > 0) continue;
