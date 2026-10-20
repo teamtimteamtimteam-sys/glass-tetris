@@ -300,6 +300,9 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   A:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',                  // 牵连块：金黄；AS = 带白芯的那一格
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
+  t:'#4a2a3a', t4:'#4a2a3a', t3:'#4a2a3a', t2:'#6e2a33', t1:'#a8222a',  // 倒计时块：暗色外壳 + 红色数码管数字，越接近爆炸越红
+  g:'#6b3fa0', g2:'#9b6fd0',                                  // 寄生方块：紫色、带绿色斑点和一只眼睛
+  d:'#f4f4f4', d1:'#f4f4f4', d2:'#f4f4f4', d3:'#f4f4f4', d4:'#f4f4f4', // 赌徒方块：白色骰子、红色点数
   c:'#f4f0ea', c2:'#ffffff',                                 // 理发块：白底红蓝斜纹的理发店转灯
   a:'#ff6fb5', a2:'#ffc0e0',                                 // 箭头方块：粉色底上一个白色的朝下箭头（小猪的颜色）
   M:'#2e3f7a', M2:'#6b86d6',                                 // 削顶块：深藏青色的锯条，上下两排青色锯齿
@@ -335,6 +338,12 @@ SHAPES.D = [0, 1, 2, 3].map(() => [[0, 0]]);
 SHAPES.a = [0, 1, 2, 3].map(() => [[0, 0]]);
 // c 理发块：竖着的两格理发店转灯，不能转；落地后自己消失，召唤骷髅店长把当前堆积最上面的两行全部剪掉
 SHAPES.c = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
+// t 倒计时块：一格。落地显示 3，之后每落一块减 1；减完还没被消掉，就炸掉以它为中心 3×3 的全部方块
+SHAPES.t = [0, 1, 2, 3].map(() => [[0, 0]]);
+// g 寄生方块：两格，能横竖转。落地后每一轮向四周空位长出 2 格，直到被全部消掉为止
+SHAPES.g = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
+// d 赌徒方块：2×2 的骰子，不能转。落地后自己消失、抽签：天使清掉最底下两行，恶魔从底部顶上来一行障碍
+SHAPES.d = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 SHAPES.F = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // C 三格冰晶块：中间一格、上面一格、左边一格；含有冰晶的行填满了也先不消，等下一次消行时一起结算
 SHAPES.C = [[[1, 0], [0, 1], [1, 1]], [[1, 1], [0, 0], [0, 1]], [[0, 1], [1, 0], [0, 0]], [[0, 0], [1, 1], [1, 0]]];
@@ -371,19 +380,21 @@ const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i) => t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i) => t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c';
+const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
-const SPECIAL_SHARE = [['D', .05], ['N', .005], ['F', .005], ['C', .02], ['Y', .02], ['H', .02], ['K', .02], ['U', .02], ['Q', .02], ['A', .01], ['E', .02], ['R', .015], ['P', .015], ['B', .03], ['V', .03], ['M', .03], ['w', .005], ['a', .02], ['c', .02]];
+// 特殊方块的占比（2026-10-21 起：三格中条、换位块各 0.25%，其余每种 1%；塌落块算一种，S、Z 形各占一半）
+// 箭头、火焰、刀刃、牵连四种已删除（代码还在，但不会再出现）
+const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .01]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
 
@@ -476,6 +487,19 @@ function makeBlock(color, D, mark){
   if (mark === 'swap') { // 换位标记格：左边一个朝上的箭头、右边一个朝下的箭头
     g.fillStyle = '#5a3fd0';
     for (const [px, py] of [[3, 2], [2, 3], [3, 3], [4, 3], [3, 4], [3, 5], [3, 6], [3, 7], [6, 7], [5, 6], [6, 6], [7, 6], [6, 5], [6, 4], [6, 3], [6, 2]]) g.fillRect(px * u, py * u, u, u);
+  }
+  if (mark && mark.startsWith('timer')) { // 倒计时：暗色外壳里一个红色数码管数字
+    const DIG = { 1: ['.x.', 'xx.', '.x.', '.x.', 'xxx'], 2: ['xxx', '..x', 'xxx', 'x..', 'xxx'], 3: ['xxx', '..x', 'xxx', '..x', 'xxx'] }[mark[5]];
+    g.fillStyle = mark[5] === '1' ? '#fff3c0' : '#ff5a4a';
+    DIG.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'x') g.fillRect((3 + i + .5) * u, (2.5 + j) * u, u, u); }));
+  }
+  if (mark === 'germ') { // 寄生：绿色斑点 + 一只白眼睛（深紫色瞳孔）
+    g.fillStyle = '#9be35a'; for (const [px, py] of [[2, 2], [7, 3], [3, 7], [7, 7], [6, 2]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, 2 * u, 2 * u); g.fillStyle = '#3a1a5a'; g.fillRect(5 * u, 5 * u, u, u);
+  }
+  if (mark && mark.startsWith('dice')) { // 骰子：红色点数 1～4
+    const n = +mark[4], P2 = { 1: [[4, 4]], 2: [[2, 2], [6, 6]], 3: [[2, 2], [4, 4], [6, 6]], 4: [[2, 2], [6, 2], [2, 6], [6, 6]] }[n];
+    g.fillStyle = '#d6332e'; for (const [px, py] of P2) g.fillRect(px * u, py * u, 2 * u, 2 * u);
   }
   if (mark === 'pole') { // 理发店转灯：白底上红、蓝两色斜条纹，左边一道竖向高光
     for (let yy = 1; yy < 9; yy++) for (let xx = 1; xx < 9; xx++) { const d = (xx + yy) % 6; if (d < 2) { g.fillStyle = '#d6453a'; g.fillRect(xx * u, yy * u, u, u); } else if (d === 3 || d === 4) { g.fillStyle = '#3f6fd6'; g.fillRect(xx * u, yy * u, u, u); } }
@@ -582,6 +606,12 @@ const Sfx = {
   },
   trim(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .16, 'sawtooth', .06, now, .5); [0, .03, .06, .09].forEach(d => Au.noise(.02, .12, now + d, 'bandpass', 2600)); },
   swap(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(880, .09, 'square', .06, now, 1.5); Au.tone(660, .16, 'triangle', .1, now + .09, .4); Au.tone(196, .08, 'triangle', .14, now + .24); },
+  tick(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(1760, .03, 'square', .05, now); Au.tone(1320, .03, 'square', .04, now + .08); },
+  boom(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .4, 'triangle', .55, now, .3); Au.noise(.36, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); },
+  squish(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(160, .12, 'sawtooth', .06, now, 1.8); Au.noise(.06, .06, now + .04, 'lowpass', 700); },
+  flip(){ if (this.ok()) Au.tone(1100, .025, 'square', .04); },
+  angel(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [76, 79, 84, 88, 91].forEach((m, i) => Au.tone(midi(m), .12, 'triangle', .08, now + i * .06)); },
+  devil(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [55, 54, 53, 49].forEach((m, i) => Au.tone(midi(m), .16, 'sawtooth', .07, now + i * .1)); Au.tone(80, .4, 'triangle', .3, now + .3, .5); },
   poof(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.22, .18, now, 'lowpass', 1200); Au.tone(880, .12, 'triangle', .06, now + .02, 1.5); },
   snip(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.025, .16, now, 'highpass', 6000); Au.tone(2400, .02, 'square', .05, now + .01); },
   oink(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [0, .16].forEach(d => { Au.tone(420, .1, 'sawtooth', .07, now + d, .62); Au.tone(260, .1, 'square', .04, now + d, .7); }); },
@@ -785,7 +815,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -794,25 +824,7 @@ function placePiece(t){
 // 只改马上要用到的前 3 块（就是 NEXT 里显示的那 3 块），并记下原来是什么；一换级就原样换回去，再按新一级的主题来。
 // 选的都是好放的普通块或者有帮助的特殊块，越往后速度越快，给的越是救场用的——只换口味，不加难度。
 // t = 主题方块的类型；share = 它们在这一级合计占全部方块的比例；n = 升级时显示的名字
-const LEVEL_FEATURE = {
-  2:  { t: ['Z'],      share: .40, n: 'RED RUSH' },     // 红色 Z 形
-  3:  { t: ['I'],      share: .30, n: 'LONG BARS' },    // 长条
-  4:  { t: ['O'],      share: .30, n: 'SQUARES' },      // 正方形
-  5:  { t: ['T'],      share: .30, n: 'T TIME' },       // T 形
-  6:  { t: ['D'],      share: .15, n: 'DOT RAIN' },     // 小点（补洞）
-  7:  { t: ['J', 'L'], share: .40, n: 'HOOKS' },        // J 形和 L 形
-  8:  { t: ['Y'],      share: .10, n: 'GARDEN' },       // 植物块
-  9:  { t: ['E'],      share: .12, n: 'PISTONS' },      // 伸缩块
-  10: { t: ['K'],      share: .12, n: 'GLASS HOUSE' },  // 易碎块
-  11: { t: ['C'],      share: .08, n: 'ICE AGE' },      // 冰晶块
-  12: { t: ['H'],      share: .12, n: 'REPAIR' },       // 补洞块
-  13: { t: ['R', 'P'], share: .14, n: 'LANDSLIDE' },    // 塌落块
-  14: { t: ['B'],      share: .12, n: 'DRILL SITE' },   // 震落块
-  15: { t: ['V'],      share: .12, n: 'BLADES' },       // 刀刃块
-  16: { t: ['D'],      share: .18, n: 'DOT STORM' },    // 小点，更多
-  17: { t: ['F'],      share: .05, n: 'WILDFIRE' },     // 火焰方块
-  18: { t: ['A', 'F'], share: .07, n: 'LAST STAND' },   // 牵连块 + 火焰方块
-};
+const LEVEL_FEATURE = {}; // 每级的主题方块已取消（2026-10-21），所有级别用同一套概率
 // 每种主题方块平时本来就有一定占比，所以「强行换成主题方块」的概率要比目标略低，合起来才正好是目标值
 const naturalShare = t => { const sp = SPECIAL_SHARE.find(([k]) => k === t); return sp ? sp[1] : (1 - SHARE_SUM) / 7; };
 // 只替换普通方块（特殊方块不动，保证它们在每一级都是设定的概率）：能被换掉的是「不是主题方块的普通方块」
@@ -863,11 +875,11 @@ function toggleLen(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c') return false;
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c' || cur.t === 't' || cur.t === 'd') return false;
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
-  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' || cur.t === 'M' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
+  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' || cur.t === 'M' || cur.t === 'g' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -1090,6 +1102,7 @@ function arrowColumn(){
 }
 function updateScene(dt){
   if (scene.kind === 'barber') return updateBarber(dt);
+  if (scene.kind === 'gamble') return updateGamble(dt);
   scene.t += dt;
   const n = scene.cells.length, t = scene.t;
   scene.cells.forEach((q, i) => { // 到点的方块被铲飞
@@ -1105,7 +1118,7 @@ function updateScene(dt){
 // 然后约 1.4 秒过场：店长在左边「噗」地出现，一把大剪刀从左往右剪过这两行，剪下的方块像碎发一样落下，店长鞠躬后消失。
 const BARBER_MS = 1400, BARBER_IN = 260, BARBER_CUT = 1060;
 function barberCut(){
-  growPlants([[cur.x, cur.y]]);
+  growPlants([[cur.x, cur.y]]); growParasites([[cur.x, cur.y]]);
   cur = null; combo = 0;
   const top = stackTop(), rows = [];
   if (top >= 0) for (let y = top; y < Math.min(TROWS, top + 2); y++) rows.push(y);
@@ -1115,6 +1128,7 @@ function barberCut(){
   if (rows.length) clearRows(rows);
   score += blocks * 10 * level;
   scene = { kind: 'barber', t: 0, rows: snap, snip: 0 };
+  tickTimers();
   state = 'cutscene';
   Sfx.poof();
   banner('#banner', [['SNIP SNIP!', 't-tetris']], 1.3);
@@ -1130,10 +1144,101 @@ function updateBarber(dt){
   if (t >= BARBER_CUT && !scene.bowed) { scene.bowed = true; Sfx.poof(); }
   if (t >= BARBER_MS) { scene = null; state = 'play'; spawn(); }
 }
+// —— 倒计时块 ——
+// 每一轮（每落下一块）结束时调用：t4→t3→t2→t1，t1 再过一轮就爆炸，炸掉以它为中心 3×3 的全部方块（钢格也炸掉，旁边的倒计时块一起炸没）
+function tickTimers(){
+  const ticking = [], boom = [];
+  for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) { const k = board[y][x]; if (k && k[0] === 't' && k.length === 2) (k === 't1' ? boom : ticking).push([x, y, k]); }
+  for (const [x, y, k] of ticking) board[y][x] = 't' + (+k[1] - 1);
+  if (ticking.length && !boom.length) Sfx.tick();
+  for (const [x, y] of boom) {
+    if (board[y][x] !== 't1') continue; // 已经被别的倒计时块炸掉了
+    const hit = [];
+    for (let yy = y - 1; yy <= y + 1; yy++) for (let xx = x - 1; xx <= x + 1; xx++) {
+      if (xx < 0 || xx >= COLS || yy < 0 || yy >= TROWS || !board[yy][xx]) continue;
+      hit.push([xx, yy, board[yy][xx]]); board[yy][xx] = null;
+    }
+    score += hit.length * 10 * level;
+    fxTimerBoom(x, y, hit); Sfx.boom(); Hap.fire(2);
+  }
+}
+// —— 寄生方块 ——
+// 每一轮：每一团相连的寄生格往四周随机空位长 2 格（第 2 格可以接着第 1 格长），不往看不见的顶上两行长，也不长到正在落下的那块身上
+function growParasites(blocked){
+  const taken = (x, y) => blocked.some(([bx, by]) => bx === x && by === y);
+  const seen = new Set(), groups = [];
+  for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) {
+    if (board[y][x] !== 'g' || seen.has(y * COLS + x)) continue;
+    const cells = [], stack = [[x, y]]; seen.add(y * COLS + x);
+    while (stack.length) {
+      const [cx, cy] = stack.pop(); cells.push([cx, cy]);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = cx + dx, ny = cy + dy; if (nx < 0 || nx >= COLS || ny < 0 || ny >= TROWS || board[ny][nx] !== 'g' || seen.has(ny * COLS + nx)) continue; seen.add(ny * COLS + nx); stack.push([nx, ny]); }
+    }
+    groups.push(cells);
+  }
+  const grown = [];
+  for (const cells of groups) for (let n = 0; n < 2; n++) {
+    const cand = [];
+    for (const [cx, cy] of cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < HID || ny >= TROWS || board[ny][nx] || taken(nx, ny)) continue;
+      if (!cand.some(([a, b]) => a === nx && b === ny)) cand.push([nx, ny]);
+    }
+    if (!cand.length) break;
+    const pick = cand[Math.floor(Math.random() * cand.length)];
+    board[pick[1]][pick[0]] = 'g'; cells.push(pick); grown.push(pick);
+  }
+  if (grown.length) { fxParasite(grown); Sfx.squish(); }
+  return grown;
+}
+// —— 赌徒方块：抽签 → 天使（清最底下两行）或恶魔（底部顶上来一行障碍）——
+const GAMBLE_MS = 1750, GAMBLE_ROLL = 760, GAMBLE_HIT = 1050;
+function gambleStart(){
+  const cs = SHAPES.d[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
+  growPlants(cs); growParasites(cs);
+  cur = null; combo = 0;
+  scene = { kind: 'gamble', t: 0, win: Math.random() < .5, flips: 0, revealed: false, done: false, rows: null, lost: false };
+  state = 'cutscene';
+  tickTimers();
+}
+function updateGamble(dt){
+  scene.t += dt;
+  const t = scene.t, flips = Math.floor(gamblePhase(Math.min(t, GAMBLE_ROLL)));
+  if (flips !== scene.flips && t < GAMBLE_ROLL) { scene.flips = flips; Sfx.flip(); }
+  if (!scene.revealed && t >= GAMBLE_ROLL) {
+    scene.revealed = true;
+    if (scene.win) { Sfx.angel(); banner('#banner', [['LUCKY!', 't-tetris']], 1); }
+    else { Sfx.devil(); banner('#banner', [['UNLUCKY!', 't-tetris']], 1); }
+  }
+  if (!scene.done && t >= GAMBLE_HIT) {
+    scene.done = true;
+    if (scene.win) { // 天使：最底下两行整行清掉（钢格也清），上面的塌下来
+      const rows = [TROWS - 2, TROWS - 1], snap = rows.map(y => ({ y, cells: board[y].slice() }));
+      for (const y of rows) for (let x = 0; x < COLS; x++) if (board[y][x] === 'US' || board[y][x] === 'UC') board[y][x] = null;
+      const blocks = snap.reduce((a, q) => a + q.cells.filter(Boolean).length, 0);
+      clearRows(rows); score += blocks * 10 * level; scene.rows = snap;
+      fxAngelClear(snap); shake(4, 200);
+    } else { // 恶魔：所有方块往上顶一行，底部补一行随机缺 1～2 格的灰色障碍
+      scene.lost = board[0].some(Boolean) || board[1].some(Boolean);
+      const row = Array(COLS).fill('X'), gaps = 1 + (Math.random() < .5 ? 1 : 0);
+      for (let i = 0; i < gaps; i++) row[Math.floor(Math.random() * COLS)] = null;
+      board.shift(); board.push(row);
+      fxDevilRow(); shake(6, 260); Hap.fire(2);
+    }
+  }
+  if (t >= GAMBLE_MS) {
+    const lost = scene.lost; scene = null; state = 'play';
+    if (lost) { topOut(); return; } // 顶到天花板了
+    spawn();
+  }
+}
+// 卡片翻面的次数：一开始翻得很快，越来越慢；最终停下时（偶数次）正好露出结果
+function gamblePhase(t){ return 14 * (1 - Math.pow(1 - t / GAMBLE_ROLL, 2)); }
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'a') { arrowColumn(); return; }
   if (cur.t === 'c') { barberCut(); return; }
+  if (cur.t === 'd') { gambleStart(); return; }
   if (cur.t === 'F') { growPlants(SHAPES.F[0].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); burnFire(); return; }
   if (cur.t !== 'D') breakGlassUnder(); // 压在玻璃格上：玻璃碎，这块方块继续落稳，然后才结算
   if (cur.t === 'Q') heavyCrush();
@@ -1142,7 +1247,7 @@ function lock(){
   let above = true;
   const pieceT = cur.t;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
-  growPlants(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
+  growPlants(cs); growParasites(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
@@ -1195,6 +1300,7 @@ function lock(){
     frozenRows = iced.length;
     if (pieceT === 'N' && !addGarbageRow()) { topOut(); return; } // 中条没消行：罚一行
   }
+  tickTimers(); // 这一轮结束：倒计时减 1，减完的爆炸
   if (above) { topOut(); return; }
   spawn();
 }
@@ -1905,6 +2011,79 @@ function fxClipping(x, y, k){
   });
   for (let i = 0; i < 6; i++) addP({ x: X0 + rand(0, c), y: Y0 + c / 2, vx: rand(-80, 80), vy: rand(-120, 20), g: 500, max: rand(300, 560), s: u, c: i % 3 === 0 ? '#1c1c22' : (COLORS[k] || '#fff') });
 }
+// 小天使 / 小恶魔：12×12 像素画
+const ANGEL = ['....yyyy....', '...y....y...', '....yyyy....', '.w..ffff..w.', 'ww..fefe..ww', 'www.ffff.www', '.ww.bbbb.ww.', '..w.bbbb.w..', '....bbbb....', '...bbbbbb...', '....f..f....', '............'];
+const ANGEL_PAL = { y: '#ffd23f', w: '#ffffff', f: '#ffd9c2', e: '#2a1a2a', b: '#eef0ff' };
+const DEVIL = ['.r........r.', '.rr......rr.', '..rrrrrrrr..', '.rrryrryrrr.', '.rrrrrrrrrr.', '.rrkkkkkkrr.', '..rrkwwkrr..', '...rrrrrr..t', '..rrrrrrrrtt', '.r.rrrrrr..t', '...rr..rr...', '............'];
+const DEVIL_PAL = { r: '#d1342f', y: '#ffd23f', k: '#3a0c0c', w: '#ffffff', t: '#ffb000' };
+function drawGambleScene(g){
+  const r = bRect(), c = CELL, W = COLS * c, t = scene.t, s = Math.max(2, Math.round(c / 5)), cw = 12 * s;
+  // 抽签卡片：棋盘上方中间一张带边框的卡片，在天使脸和恶魔脸之间翻；翻到最后停在结果上
+  const flips = Math.floor(gamblePhase(Math.min(t, GAMBLE_ROLL))), angelUp = (flips % 2 === 0) === scene.win;
+  const cardW = cw + 6 * s, cardH = cw + 6 * s, cx = r.left + W / 2 - cardW / 2, cy = r.top + c * 3;
+  const fade = t < GAMBLE_HIT ? 1 : Math.max(0, 1 - (t - GAMBLE_HIT) / 300);
+  if (fade > 0) {
+    const squash = t < GAMBLE_ROLL ? Math.abs(Math.cos((gamblePhase(t) % 1) * Math.PI)) : 1; // 翻面时卡片横向压扁再展开
+    const w = Math.max(s, Math.round(cardW * squash / s) * s), x0 = Math.round(r.left + W / 2 - w / 2);
+    g.globalAlpha = fade;
+    g.fillStyle = scene.revealed ? (scene.win ? '#ffd23f' : '#d1342f') : '#d6d9e6'; g.fillRect(x0 - s, cy - s, w + 2 * s, cardH + 2 * s);
+    g.fillStyle = '#1a1f35'; g.fillRect(x0, cy, w, cardH);
+    if (squash > .35) { g.save(); g.translate(x0 + w / 2, 0); g.scale(squash, 1); drawSprite(g, angelUp ? ANGEL : DEVIL, -cw / 2, cy + 3 * s, s, false, angelUp ? ANGEL_PAL : DEVIL_PAL); g.restore(); }
+    g.globalAlpha = 1;
+  }
+  if (!scene.revealed) return;
+  const k = Math.min(1, (t - GAMBLE_ROLL) / (GAMBLE_MS - GAMBLE_ROLL)), bottom = r.top + ROWS * c;
+  if (scene.win) { // 小天使从卡片飞下来，到底下两行上方撒光，然后往上飞走
+    const down = Math.min(1, k * 2.2), up = Math.max(0, (k - .6) / .4);
+    const ax = r.left + W / 2 - cw / 2 + Math.sin(t / 90) * 2 * s, ay = cy + (bottom - 2 * c - cw - cy) * down - (bottom) * up * up;
+    drawSprite(g, ANGEL, ax, ay, s, false, ANGEL_PAL);
+    if (Math.floor(t / 60) % 2) addP({ x: ax + rand(0, cw), y: ay + cw, vx: rand(-40, 40), vy: rand(40, 160), max: rand(240, 420), s: Math.max(2, s / 2), c: Math.random() < .5 ? '#ffd23f' : '#fff' });
+  } else { // 小恶魔从棋盘底下冒出来、晃两下，然后沉下去
+    const rise = Math.min(1, k * 2.5), sink = Math.max(0, (k - .7) / .3);
+    const dx = r.left + W / 2 - cw / 2 + (Math.floor(t / 80) % 2 ? s : -s), dy = bottom - cw * (rise - sink) - s;
+    g.save(); g.beginPath(); g.rect(r.left - 40, 0, W + 80, bottom); g.clip(); drawSprite(g, DEVIL, dx, dy, s, false, DEVIL_PAL); g.restore();
+    if (Math.floor(t / 70) % 3 === 0) addP({ x: dx + rand(0, cw), y: bottom - s, vx: rand(-60, 60), vy: rand(-140, -40), max: rand(200, 360), s: Math.max(2, s / 2), c: Math.random() < .5 ? '#d1342f' : '#ffb000' });
+  }
+}
+function fxAngelClear(snap){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c;
+  const rows = snap.filter(q => q.y >= HID).map(q => ({ sy: r.top + (q.y - HID) * c, cells: q.cells }));
+  anim(360, (k, g) => { // 两行变成金白色的光、从中间向上散开
+    for (const row of rows) { g.globalAlpha = 1 - k; g.fillStyle = k < .3 ? '#fff' : '#ffe98a'; const h = Math.max(u, Math.round(c * (1 - k) / u) * u); g.fillRect(r.left, row.sy + (c - h) / 2 - k * c, W, h); }
+    g.globalAlpha = 1;
+  });
+  for (const row of rows) row.cells.forEach((t, x) => { if (t) for (let i = 0; i < 3; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: row.sy + rand(0, c), vx: rand(-60, 60), vy: rand(-360, -120), g: -80, max: rand(360, 640), s: u, c: i ? '#ffd23f' : '#fff' }); });
+  banner('#banner', [['ANGEL!', 't-tetris'], ['-2 ROWS', 't-combo']], .7);
+}
+function fxDevilRow(){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c, y = r.top + (ROWS - 1) * c;
+  anim(320, (k, g) => { g.globalAlpha = .8 * (1 - k); g.fillStyle = Math.floor(k * 6) % 2 ? '#d1342f' : '#ffb000'; g.fillRect(r.left, y, W, c); g.globalAlpha = 1; });
+  for (let i = 0; i < 26; i++) addP({ x: r.left + rand(0, W), y: y + c, vx: rand(-80, 80), vy: rand(-260, -60), g: 500, max: rand(260, 460), s: u, c: i % 2 ? '#d1342f' : '#ffb000' });
+  banner('#banner', [['DEVIL!', 't-tetris'], ['+1 ROW', 't-combo']], .7);
+}
+function fxTimerBoom(x, y, hit){
+  const r = bRect(), c = CELL, u = px(c), cx = r.left + (x + .5) * c, cy = r.top + (y - HID + .5) * c;
+  anim(300, (k, g) => { // 3×3 范围白闪转橙，再推出一圈方形冲击波
+    if (k < .45) { g.globalAlpha = 1 - k / .45; g.fillStyle = k < .15 ? '#fff' : '#ffb347'; g.fillRect(cx - 1.5 * c, cy - 1.5 * c, 3 * c, 3 * c); g.globalAlpha = 1; }
+    const rad = Math.round((1.5 * c + k * 3 * c) / u) * u, th = Math.max(u, Math.round((1 - k) * 3) * u);
+    g.globalAlpha = 1 - k; g.fillStyle = '#ffd23f';
+    for (let d = -rad; d <= rad; d += 2 * u) { g.fillRect(cx + d, cy - rad, u, th); g.fillRect(cx + d, cy + rad, u, th); g.fillRect(cx - rad, cy + d, th, u); g.fillRect(cx + rad, cy + d, th, u); }
+    g.globalAlpha = 1;
+  });
+  for (let i = 0; i < 36; i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 460); addP({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, g: 500, max: rand(220, 440), s: u * (i % 4 === 0 ? 2 : 1), c: ['#fff', '#ffd23f', '#ff8a3c', '#e2452e'][i % 4] }); }
+  for (const [xx, yy, k] of hit) if (yy >= HID) for (let i = 0; i < 3; i++) addP({ x: r.left + (xx + .5) * c, y: r.top + (yy - HID + .5) * c, vx: rand(-260, 260), vy: rand(-320, -60), g: 800, max: rand(260, 480), s: u, c: COLORS[k] || '#fff', delay: 30 });
+  shake(7, 260);
+  banner('#banner', [['BOOM!', 't-tetris'], ['-' + hit.length + ' BLOCKS', 't-combo']], .5);
+}
+function fxParasite(grown){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [x, y] of grown) {
+    if (y < HID) continue;
+    const X = r.left + x * c, Y = r.top + (y - HID) * c;
+    anim(220, (k, g) => { const sz = Math.max(u, Math.round(c * Math.min(1, k * 1.5) / u) * u); g.globalAlpha = 1 - k * .6; g.fillStyle = k < .4 ? '#c9a8ff' : '#9be35a'; g.fillRect(X + (c - sz) / 2, Y + (c - sz) / 2, sz, sz); g.globalAlpha = 1; });
+    for (let i = 0; i < 5; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-90, 90), vy: rand(-90, 60), g: 300, max: rand(180, 320), s: u, c: i % 2 ? '#9be35a' : '#6b3fa0' });
+  }
+}
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
@@ -2115,7 +2294,7 @@ function drawFx(){
   fxDirty = !!active;
   fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   fctx.clearRect(0, 0, fxW, fxH);
-  if (scene) (scene.kind === 'barber' ? drawBarberScene : drawPigScene)(fctx);
+  if (scene) (scene.kind === 'barber' ? drawBarberScene : scene.kind === 'gamble' ? drawGambleScene : drawPigScene)(fctx);
   for (const a of A) if (a.t >= 0) a.fn(Math.min(1, a.t / a.dur), fctx);
   for (const p of P) {
     if (p.delay > 0) continue;
