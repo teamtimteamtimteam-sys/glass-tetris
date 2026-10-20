@@ -262,6 +262,7 @@ h2 .cn{font-family:var(--cjk);font-weight:900;font-size:22px}
 <!-- 暂停 -->
 <div class="screen" id="sPause">
   <h2>PAUSED</h2>
+  <div class="note" id="pauseRule"></div>
   <div class="menu">
     <button class="pxbtn primary" id="resumeBtn">RESUME</button>
     <button class="pxbtn" id="restartBtn">RESTART</button>
@@ -300,6 +301,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   K:'#d9d2ff', KS:'#d9d2ff', KS2:'#ffffff',               // 易碎块：整块都是透明玻璃格（K 只用来画落点虚线框）
   A:'#f5b800', AS:'#ffd23f', AS2:'#fff6b0',                  // 牵连块：金黄；AS = 带白芯的那一格
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
+  o:'#e8b020',                                                // 金币格（第 6 级「寻宝」）
   t:'#4a2a3a', t4:'#4a2a3a', t3:'#4a2a3a', t2:'#6e2a33', t1:'#a8222a',  // 倒计时块：暗色外壳 + 红色数码管数字，越接近爆炸越红
   g:'#6b3fa0', g2:'#9b6fd0',                                  // 寄生方块：紫色、带绿色斑点和一只眼睛
   d:'#f4f4f4', d1:'#f4f4f4', d2:'#f4f4f4', d3:'#f4f4f4', d4:'#f4f4f4', // 赌徒方块：白色骰子、红色点数
@@ -384,7 +386,7 @@ const cellKey = (t, i) => t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === '
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
 const fallSkin = (t, i, blink) => t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
@@ -396,7 +398,8 @@ const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t ===
 // 箭头、火焰、刀刃、牵连四种已删除（代码还在，但不会再出现）
 const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .01]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
-const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES; // 每一袋 7 块里额外混进一块的概率
+const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES;
+const SP_DRAWS = 6; // 每袋固定抽 6 次（够「特殊方块 ×3」用）；次数固定，所以随机数用量不随级别变化 // 每一袋 7 块里额外混进一块的概率
 
 /* ================= DOM ================= */
 const $ = s => document.querySelector(s);
@@ -487,6 +490,11 @@ function makeBlock(color, D, mark){
   if (mark === 'swap') { // 换位标记格：左边一个朝上的箭头、右边一个朝下的箭头
     g.fillStyle = '#5a3fd0';
     for (const [px, py] of [[3, 2], [2, 3], [3, 3], [4, 3], [3, 4], [3, 5], [3, 6], [3, 7], [6, 7], [5, 6], [6, 6], [7, 6], [6, 5], [6, 4], [6, 3], [6, 2]]) g.fillRect(px * u, py * u, u, u);
+  }
+  if (mark === 'coin') { // 金币：一圈亮边 + 中间一个竖条，左上一颗高光
+    g.fillStyle = '#fff3b0'; g.fillRect(3 * u, 2 * u, 4 * u, u); g.fillRect(3 * u, 7 * u, 4 * u, u); g.fillRect(2 * u, 3 * u, u, 4 * u); g.fillRect(7 * u, 3 * u, u, 4 * u);
+    g.fillStyle = '#a87410'; g.fillRect(4.5 * u, 3.5 * u, u, 3 * u);
+    g.fillStyle = '#fff'; g.fillRect(3 * u, 3 * u, u, u);
   }
   if (mark && mark.startsWith('timer')) { // 倒计时：暗色外壳里一个红色数码管数字
     const DIG = { 1: ['.x.', 'xx.', '.x.', '.x.', 'xxx'], 2: ['xxx', '..x', 'xxx', 'x..', 'xxx'], 3: ['xxx', '..x', 'xxx', '..x', 'xxx'] }[mark[5]];
@@ -606,6 +614,7 @@ const Sfx = {
   },
   trim(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .16, 'sawtooth', .06, now, .5); [0, .03, .06, .09].forEach(d => Au.noise(.02, .12, now + d, 'bandpass', 2600)); },
   swap(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(880, .09, 'square', .06, now, 1.5); Au.tone(660, .16, 'triangle', .1, now + .09, .4); Au.tone(196, .08, 'triangle', .14, now + .24); },
+  coin(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(midi(88), .06, 'square', .06, now); Au.tone(midi(95), .14, 'square', .06, now + .06); },
   tick(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(1760, .03, 'square', .05, now); Au.tone(1320, .03, 'square', .04, now + .08); },
   boom(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .4, 'triangle', .55, now, .3); Au.noise(.36, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); },
   squish(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(160, .12, 'sawtooth', .06, now, 1.8); Au.noise(.06, .06, now + .04, 'lowpass', 700); },
@@ -795,8 +804,9 @@ function fillQueue(){
     const bag = TYPES.split('');
     for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
     // 特殊方块随机混进这一袋（用同一个随机源，每日挑战的顺序仍然人人相同）
-    for (let k = 0; k < SP_TRIES; k++) {
-      const hit = rng() < SP_TRY_P, pick = rng() * SHARE_SUM, at = Math.floor(rng() * (bag.length + 1));
+    const spP = SP_PER_BAG * (rules().sp ?? 1) / SP_DRAWS; // 本级玩法可以让特殊方块变多（嘉年华）或不出（经典）
+    for (let k = 0; k < SP_DRAWS; k++) {
+      const hit = rng() < spP, pick = rng() * SHARE_SUM, at = Math.floor(rng() * (bag.length + 1));
       if (!hit) continue;
       let acc = 0;
       for (const [t, f] of SPECIAL_SHARE) { acc += f; if (pick < acc) { bag.splice(at, 0, t); break; } }
@@ -825,6 +835,31 @@ function placePiece(t){
 // 选的都是好放的普通块或者有帮助的特殊块，越往后速度越快，给的越是救场用的——只换口味，不加难度。
 // t = 主题方块的类型；share = 它们在这一级合计占全部方块的比例；n = 升级时显示的名字
 const LEVEL_FEATURE = {}; // 每级的主题方块已取消（2026-10-21），所有级别用同一套概率
+// —— 每一级的特殊玩法（2～18 级各一种，第 1 级是标准玩法）——
+// n 英文名、cn 升级时显示的短中文、d 暂停页里的完整说明；其余字段是规则开关：
+// single 单消得分倍数 / tetris 四消倍数 / combo 连击奖励倍数 / lineMul 所有消行得分倍数 / drop 直落每格得分倍数
+// lock 落地可调整时间(ms) / grav 下落间隔倍数(>1 更慢) / sp 特殊方块出现率倍数(0 = 不出) / noGhost 不显示落点影子 / freeHold HOLD 不限次数
+// sweep 每 N 块清最底下一行 / sand 每 N 块吹走顶上一格 / tide 每 N 块底部升一行障碍 / treasure 藏一个金币格 / save 本级第一次顶到天花板时复活一次
+const LEVEL_RULES = {
+  2:  { n: 'SINGLE BONUS',  cn: '单消×3',     d: '消 1 行的得分 ×3', single: 3 },
+  3:  { n: 'SOFT LANDING',  cn: '软着陆',     d: '方块落地后可调整的时间从 0.3 秒延长到 0.8 秒', lock: 800 },
+  4:  { n: 'FREE HOLD',     cn: '无限暂存',   d: 'HOLD 不限次数，同一块可以反复交换', freeHold: 1 },
+  5:  { n: 'SWEEPER',       cn: '清道夫',     d: '每落下 10 块，自动清掉最底下一行', sweep: 10 },
+  6:  { n: 'TREASURE',      cn: '寻宝',       d: '堆积里藏着一个金币格，消掉它所在的那一行额外得 1000×级别', treasure: 1 },
+  7:  { n: 'COMBO PARTY',   cn: '连击派对',   d: '连击奖励 ×3', combo: 3 },
+  8:  { n: 'CARNIVAL',      cn: '特殊嘉年华', d: '特殊方块出现率 ×3', sp: 3 },
+  9:  { n: 'CLASSIC',       cn: '经典回归',   d: '只出现七种普通方块', sp: 0 },
+  10: { n: 'SLOW MOTION',   cn: '慢动作',     d: '方块下落速度慢 40%', grav: 1.4 },
+  11: { n: 'SANDSTORM',     cn: '风沙',       d: '每落下 6 块，堆积最顶上随机一格被风吹走', sand: 6 },
+  12: { n: 'TETRIS FEVER',  cn: '四消狂热',   d: '一次消 4 行（及以上）的得分 ×2', tetris: 2 },
+  13: { n: 'BLIND DROP',    cn: '盲落',       d: '不显示落点影子，但消行得分 ×1.5', noGhost: 1, lineMul: 1.5 },
+  14: { n: 'RISING TIDE',   cn: '涨潮',       d: '每落下 15 块，底部升起一行障碍，但消行得分 ×1.5', tide: 15, lineMul: 1.5 },
+  15: { n: 'HARD DROP',     cn: '直落奖励',   d: '快速下划直落时，每格得分 ×5', drop: 5 },
+  16: { n: 'SECOND CHANCE', cn: '复活一次',   d: '本级第一次顶到天花板时，自动清掉最上面 8 行，继续游戏', save: 1 },
+  17: { n: 'DOUBLE SCORE',  cn: '得分翻倍',   d: '消行得分 ×2', lineMul: 2 },
+  18: { n: 'MAX POWER',     cn: '终极之力',   d: '消行得分 ×3，落地可调整时间 0.45 秒', lineMul: 3, lock: 450 },
+};
+const rules = () => LEVEL_RULES[level] || {};
 // 每种主题方块平时本来就有一定占比，所以「强行换成主题方块」的概率要比目标略低，合起来才正好是目标值
 const naturalShare = t => { const sp = SPECIAL_SHARE.find(([k]) => k === t); return sp ? sp[1] : (1 - SHARE_SUM) / 7; };
 // 只替换普通方块（特殊方块不动，保证它们在每一级都是设定的概率）：能被换掉的是「不是主题方块的普通方块」
@@ -890,7 +925,7 @@ function rotateCW(){
   return false;
 }
 function doHold(){
-  if (!cur || holdUsed) return false;
+  if (!cur || (holdUsed && !rules().freeHold)) return false;
   const t = cur.t;
   if (hold) { const h = hold; hold = t; placePiece(h); }
   else { hold = t; placePiece(takeNext()); }
@@ -928,7 +963,7 @@ function addGarbageRow(){
 function hardDrop(){
   if (!cur) return;
   const y0 = cur.y, y1 = ghostY();
-  score += (y1 - y0) * 2; cur.y = y1;
+  score += (y1 - y0) * 2 * (rules().drop || 1); cur.y = y1;
   fxHardDrop(y0, y1); Sfx.hard(); Hap.fire(1);
   lock();
 }
@@ -1150,6 +1185,7 @@ function tickTimers(){
   const ticking = [], boom = [];
   for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) { const k = board[y][x]; if (k && k[0] === 't' && k.length === 2) (k === 't1' ? boom : ticking).push([x, y, k]); }
   for (const [x, y, k] of ticking) board[y][x] = 't' + (+k[1] - 1);
+  levelRuleTurn();
   if (ticking.length && !boom.length) Sfx.tick();
   for (const [x, y] of boom) {
     if (board[y][x] !== 't1') continue; // 已经被别的倒计时块炸掉了
@@ -1234,6 +1270,48 @@ function updateGamble(dt){
 }
 // 卡片翻面的次数：一开始翻得很快，越来越慢；最终停下时（偶数次）正好露出结果
 function gamblePhase(t){ return 14 * (1 - Math.pow(1 - t / GAMBLE_ROLL, 2)); }
+// —— 本级玩法的定时事件（每一轮结束时调用一次）——
+let ruleLevel = 0, ruleTurns = 0, treasurePlaced = false, saveUsed = false;
+function syncRuleLevel(){ if (ruleLevel !== level) { ruleLevel = level; ruleTurns = 0; treasurePlaced = false; saveUsed = false; } }
+function levelRuleTurn(){
+  syncRuleLevel(); ruleTurns++;
+  const R = rules();
+  if (R.sweep && ruleTurns % R.sweep === 0) sweepBottom();
+  if (R.sand && ruleTurns % R.sand === 0) sandBlow();
+  if (R.tide && ruleTurns % R.tide === 0) tideRise();
+  if (R.treasure && !treasurePlaced) placeTreasure();
+}
+// 清道夫：最底下一行整行清掉（钢格也清）
+function sweepBottom(){
+  const y = TROWS - 1; if (!board[y].some(Boolean)) return;
+  const snap = [{ y, cells: board[y].slice() }], blocks = board[y].filter(Boolean).length;
+  for (let x = 0; x < COLS; x++) if (board[y][x] === 'US' || board[y][x] === 'UC') board[y][x] = null;
+  clearRows([y]); score += blocks * 10 * level;
+  fxRowFlash(snap, '#7fe8ff', 'SWEEP!'); Sfx.trim();
+}
+// 风沙：随机挑一列，把它最顶上的那一格吹走
+function sandBlow(){
+  const cols = []; for (let x = 0; x < COLS; x++) if (board.some(row => row[x])) cols.push(x);
+  if (!cols.length) return;
+  const x = cols[Math.floor(Math.random() * cols.length)];
+  for (let y = 0; y < TROWS; y++) if (board[y][x]) { fxSand(x, y, board[y][x]); board[y][x] = null; Sfx.squish(); break; }
+}
+// 涨潮：整堆往上顶一行，底部补一行缺 2 格的障碍；顶出天花板就结束
+function tideRise(){
+  const lost = board[0].some(Boolean) || board[1].some(Boolean);
+  const row = Array(COLS).fill('X'); for (let i = 0; i < 2; i++) row[Math.floor(Math.random() * COLS)] = null;
+  board.shift(); board.push(row);
+  fxRowFlash([{ y: TROWS - 1, cells: row }], '#7fc8ff', 'TIDE!'); Sfx.devil(); shake(4, 200);
+  if (lost) topOut();
+}
+// 寻宝：在堆积里随机挑一格普通方块变成金币（还没有方块时下一轮再试）
+function placeTreasure(){
+  const cand = [];
+  for (let y = HID; y < TROWS; y++) for (let x = 0; x < COLS; x++) if (board[y][x] && 'IJLOSTZ'.includes(board[y][x])) cand.push([x, y]);
+  if (!cand.length) return;
+  const [x, y] = cand[Math.floor(Math.random() * cand.length)];
+  board[y][x] = 'o'; treasurePlaced = true; fxCoinAppear(x, y); Sfx.coin();
+}
 let frozenRows = 0;
 function lock(){
   if (cur.t === 'a') { arrowColumn(); return; }
@@ -1270,8 +1348,9 @@ function lock(){
     const blasted = blastSnap.reduce((a, q) => a + q.cells.filter(Boolean).length, 0);
     // 削顶 / 换位：先看被消掉的行里有没有它们的格子，等正常消行、塌落都做完再动手
     const gone = full.concat(blast.rows), hasIn = test => gone.some(y => board[y].some(k => k && test(k)));
-    const trimHit = hasIn(k => k === 'M'), swapHit = hasIn(k => k[0] === 'w');
+    const trimHit = hasIn(k => k === 'M'), swapHit = hasIn(k => k[0] === 'w'), coinHit = hasIn(k => k === 'o');
     const steelKept = clearRows(full.concat(blast.rows).sort((a, b) => a - b));
+    if (coinHit) { score += 1000 * level; fxCoin(); Sfx.coin(); } // 寻宝：金币格所在的行被消掉
     if (trimHit) { const res = trimTopRows(3); if (res) { fxTrimRows(res); Sfx.trim(); score += res.blocks * 10 * level; } }
     if (swapHit) { const res = swapTopBottom(); if (res) { fxSwapRows(res); Sfx.swap(); } }
     if (blast.cores.length) { fxLinkBlast(blastSnap, blast.cores); Sfx.link(); score += blasted * 10 * level; }
@@ -1281,9 +1360,10 @@ function lock(){
     const penta = pieceT === 'E' && n >= 5;                          // 伸缩块伸长后一次消 5 行：按五消算，远高于四消
     if (penta) pts = PENTA_PTS * level * (iceN ? 2 : 1);
     if (nEff === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else b2b = 0;
-    if (combo >= 2) pts += 50 * (combo - 1) * level;
+    if (combo >= 2) pts += 50 * (combo - 1) * level * (rules().combo || 1);
     const pc = board.every(row => row.every(c => !c));
     if (pc) { pts += (nEff === 4 && b2bNow ? 3200 : PC_PTS[nEff]) * level; pcs++; }
+    { const RL = rules(); if (n === 1) pts *= RL.single || 1; if (nEff === 4) pts *= RL.tetris || 1; pts = Math.round(pts * (RL.lineMul || 1)); } // 本级玩法的得分倍数
     score += pts;
     const oldLv = level;
     lines += n;
@@ -1300,7 +1380,8 @@ function lock(){
     frozenRows = iced.length;
     if (pieceT === 'N' && !addGarbageRow()) { topOut(); return; } // 中条没消行：罚一行
   }
-  tickTimers(); // 这一轮结束：倒计时减 1，减完的爆炸
+  tickTimers(); // 这一轮结束：倒计时减 1，减完的爆炸；本级玩法的定时事件
+  if (state !== 'play') return; // 涨潮把方块顶出了天花板
   if (above) { topOut(); return; }
   spawn();
 }
@@ -1328,6 +1409,15 @@ function startGame(m){
 }
 function topOut(){
   if (state !== 'play') return;
+  syncRuleLevel();
+  if (rules().save && !saveUsed) { // 复活一次：清掉最上面 8 行（可见区），整堆往下塌，接着玩
+    saveUsed = true;
+    const rows = []; for (let y = 0; y < HID + 8; y++) rows.push(y);
+    for (const y of rows) for (let x = 0; x < COLS; x++) if (board[y][x] === 'US' || board[y][x] === 'UC') board[y][x] = null;
+    clearRows(rows); fxSave(); Sfx.angel();
+    if (cur) placePiece(cur.t); else spawn();
+    return;
+  }
   state = 'dying'; dieT = 0; cur = null; clearInput();
   Music.stop(); Sfx.over(); Hap.fire(2);
 }
@@ -1368,7 +1458,9 @@ let pausedFrom = null;
 function pauseGame(){
   if (state === 'play' || state === 'countdown' || state === 'cutscene') {
     if (state !== 'countdown') pausedFrom = state; // 倒数中又被打断：保留原来要回到的状态
-    state = 'pause'; clearInput(); Music.stop(); showScreen('sPause');
+    state = 'pause'; clearInput(); Music.stop();
+    const RL = rules(); $('#pauseRule').textContent = RL.d ? `第 ${level} 级玩法 · ${RL.cn}：${RL.d}` : `第 ${level} 级：标准玩法`;
+    showScreen('sPause');
   }
 }
 function resumeGame(){
@@ -1409,7 +1501,7 @@ function update(dt){
     }
     // 重力
     if (canMove(0, 1)) {
-      const iv = input.soft ? softMs() : SPEED[level];
+      const iv = input.soft ? softMs() : SPEED[level] * (rules().grav || 1);
       dropAcc += dt;
       while (dropAcc >= iv) {
         dropAcc -= iv;
@@ -1420,7 +1512,7 @@ function update(dt){
     // 锁定
     if (!canMove(0, 1)) {
       lockTimer += dt;
-      if (lockTimer >= LOCK_DELAY) lock();
+      if (lockTimer >= (rules().lock || LOCK_DELAY)) lock();
     }
   } else if (state === 'cutscene' && scene) {
     playTime += dt; updateScene(dt);
@@ -1443,7 +1535,7 @@ function drawGrid(){
   ctx.drawImage(gridCache, 0, 0);
 }
 function blit(img, x, y){ if (y >= HID) ctx.drawImage(img, x * CD, (y - HID) * CD); }
-function ghostMode(){ return level >= 15 ? SET.ghost : 'normal'; }
+function ghostMode(){ return rules().noGhost ? 'off' : level >= 15 ? SET.ghost : 'normal'; }
 function render(){
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawGrid();
@@ -2084,6 +2176,34 @@ function fxParasite(grown){
     for (let i = 0; i < 5; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-90, 90), vy: rand(-90, 60), g: 300, max: rand(180, 320), s: u, c: i % 2 ? '#9be35a' : '#6b3fa0' });
   }
 }
+function fxRowFlash(snap, color, text){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c;
+  const rows = snap.filter(q => q.y >= HID).map(q => ({ sy: r.top + (q.y - HID) * c, cells: q.cells }));
+  anim(320, (k, g) => { for (const row of rows) { g.globalAlpha = 1 - k; g.fillStyle = k < .3 ? '#fff' : color; const h = Math.max(u, Math.round(c * (1 - k) / u) * u); g.fillRect(r.left, row.sy + (c - h) / 2, W, h); } g.globalAlpha = 1; });
+  for (const row of rows) row.cells.forEach((t, x) => { if (t) for (let i = 0; i < 2; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: row.sy + rand(0, c), vx: rand(-90, 90), vy: rand(-220, -60), g: 500, max: rand(260, 440), s: u, c: i ? color : '#fff' }); });
+  banner('#banner', [[text, 't-clear']], .45);
+}
+function fxSand(x, y, k){
+  if (y < HID) return;
+  const r = bRect(), c = CELL, u = px(c), X = r.left + x * c, Y = r.top + (y - HID) * c;
+  anim(260, (kk, g) => { g.globalAlpha = 1 - kk; g.drawImage(blockCache[k], X + kk * c * 1.5, Y - kk * c * .4, c, c); g.globalAlpha = 1; });
+  for (let i = 0; i < 12; i++) addP({ x: X + rand(0, c), y: Y + rand(0, c), vx: rand(120, 320), vy: rand(-80, 20), g: 60, max: rand(300, 520), s: u, c: i % 2 ? '#e6c98a' : (COLORS[k] || '#fff') });
+}
+function fxCoinAppear(x, y){
+  const r = bRect(), c = CELL, u = px(c), X = r.left + (x + .5) * c, Y = r.top + (y - HID + .5) * c;
+  for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; addP({ x: X, y: Y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, max: 360, s: u, c: i % 2 ? '#ffd23f' : '#fff' }); }
+  banner('#banner', [['TREASURE!', 't-clear']], .6);
+}
+function fxCoin(){
+  const r = bRect(), W = COLS * CELL, u = px(CELL);
+  for (let i = 0; i < 40; i++) addP({ x: r.left + rand(0, W), y: r.top + rand(0, ROWS * CELL * .6), vx: rand(-60, 60), vy: rand(-260, -60), g: 400, max: rand(500, 900), s: u * (i % 3 ? 1 : 2), c: i % 2 ? '#ffd23f' : '#fff3b0' });
+  setTimeout(() => banner('#banner', [['GOLD!', 't-tetris'], ['+' + (1000 * level), 't-combo']], .8), 420);
+}
+function fxSave(){
+  const r = bRect(), W = COLS * CELL;
+  anim(400, (k, g) => { g.globalAlpha = .6 * (1 - k); g.fillStyle = '#fff6b0'; g.fillRect(r.left, r.top, W, ROWS * CELL); g.globalAlpha = 1; });
+  banner('#banner', [['SECOND', 't-tetris'], ['CHANCE!', 't-tetris']], 1.1);
+}
 function fxHold(){
   const r = $('#holdBox').getBoundingClientRect(), u = 3;
   for (let i = 0; i < 8; i++) addP({ x: r.left + r.width / 2, y: r.top + r.height / 2, vx: rand(-120, 120), vy: rand(-120, 120), max: 180, s: u, c: '#fff' });
@@ -2235,8 +2355,8 @@ function fxLevelUp(){
   const list = [['LEVEL ' + level, 't-lv ' + cls]];
   if (level >= MAX_LEVEL) list.push(['MAX SPEED', 't-max']);
   list.push(['BGM · ' + STYLES[Math.min(STYLES.length, level) - 1].n, 't-combo']); // 这一级的曲子名字
-  if (LEVEL_FEATURE[level]) list.push([LEVEL_FEATURE[level].n, 't-b2b']);              // 这一级的主题方块
-  banner('#lvBanner', list, level >= 18 ? 1.1 : .9);
+  if (LEVEL_RULES[level]) list.push([LEVEL_RULES[level].n, 't-b2b'], [pixelTextImg(LEVEL_RULES[level].cn, COLS * CELL * .8), 't-cn']); // 这一级的玩法
+  banner('#lvBanner', list, level >= 18 ? 1.7 : 1.5); // 多了一行玩法说明，停留久一点
   if (level === 17) classPulse(bgEl, 'pulse17', 900);
   if (level >= 18) classPulse(bgEl, 'pulse18', 1200);
 }
