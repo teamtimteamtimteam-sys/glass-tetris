@@ -581,10 +581,15 @@ const Au = {
   tone(f, dur, type = 'square', vol = .1, at = 0, slide = 0, out){
     if (!this.ctx) return;
     const t = at || this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
-    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (type === 'p25' || type === 'p12') o.setPeriodicWave(this.pulse(type === 'p25' ? .25 : .125)); else o.type = type; o.frequency.setValueAtTime(f, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f * slide), t + dur);
     g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     o.connect(g); g.connect(out || this.sfx); o.start(t); o.stop(t + dur + .01);
+  },
+  pulse(d){ // FC 的窄脉冲波（25% / 12.5% 占空比）
+    this._pw = this._pw || {};
+    if (!this._pw[d]) { const N = 32, re = new Float32Array(N), im = new Float32Array(N); for (let n = 1; n < N; n++) re[n] = 2 / (n * Math.PI) * Math.sin(n * Math.PI * d); this._pw[d] = this.ctx.createPeriodicWave(re, im); }
+    return this._pw[d];
   },
   noise(dur, vol, at = 0, type = 'highpass', freq = 4000, out){
     if (!this.ctx) return;
@@ -681,40 +686,74 @@ const CH = { M: [0, 4, 7], m: [0, 3, 7], M7: [0, 4, 7, 11], m7: [0, 3, 7, 10], 7
 // 字段：n 名字；bpm；key 主音(MIDI)；sc 调式；spb 每小节几步；sdiv 一拍几步；sw 摇摆量；ch 四小节和弦 [离主音几个半音, 和弦类型]
 // bass 低音型：0 根音 5 五度 8 八度 3 三度 7 小七度 . 休止；arp 分解和弦：数字 = 第几个和弦音，c = 整个和弦短促一下；asc 表示 arp 的数字按音阶走
 // lead 主旋律的节奏（x = 出声）；k 底鼓 s 军鼓 h 镲 p 小打；bw/aw/lw 各声部波形；bv/av/lv 音量；bl/al 音符长度（步）；ao/lo 八度；loct 主旋律叠高八度
-// 每一级的曲子按这一级的玩法来配：第 1 级是经典俄罗斯方块的《货郎》（Korobeiniki，俄罗斯民歌）；mel 写死主旋律（音名:步数，R 休止），没有 mel 的由级别做种子现场生成
+// 每一级的曲子按这一级的玩法来配：第 1 级是经典俄罗斯方块的《货郎》（Korobeiniki，俄罗斯民歌）；mel 写死主旋律（音名:步数，R 休止；曲子多长就循环多长，mt 整体移调），没有 mel 的由级别做种子现场生成
 // w 风声（沙暴那一级）
 const STYLES = [
   { n: 'KOROBEINIKI', bpm: 144, key: 57, sc: 'min', ch: [[7, 'M'], [0, 'm'], [7, 'M'], [0, 'm'], [5, 'm'], [3, 'M'], [7, 'M'], [0, 'm']], bass: '0.8.0.8.0.8.0.8.', lead: '',
     mel: 'E5:4 B4:2 C5:2 D5:4 C5:2 B4:2 | A4:4 A4:2 C5:2 E5:4 D5:2 C5:2 | B4:6 C5:2 D5:4 E5:4 | C5:4 A4:4 A4:8 | R:2 D5:4 F5:2 A5:4 G5:2 F5:2 | E5:6 C5:2 E5:4 D5:2 C5:2 | B4:4 B4:2 C5:2 D5:4 E5:4 | C5:4 A4:4 A4:4 R:4',
     k: 'x.......x.......', s: '....x.......x...', h: '..h...h...h...h.', bw: 'triangle', bv: .5, bl: 1.6, lv: .09, kv: .35, sv: .18, hv: .06 },
-  { n: 'POLKA',     bpm: 120, key: 65, sc: 'maj',  ch: [[0, 'M'], [7, '7'], [7, '7'], [0, 'M']],     bass: '0...5...0...5...', arp: '..c...c...c...c.', lead: 'x.x.x.x.xx..x...', p: 'p.......p...p...', bw: 'triangle', bv: .55, bl: 1.6, av: .045, al: .7, pf: 1300, pv: .18, ao: 1, lo: 1 },
-  { n: 'LULLABY',   bpm: 72,  key: 67, sc: 'maj',  spb: 12, sdiv: 3, ch: [[0, 'M7'], [5, 'M7'], [9, 'm7'], [7, 'M']], bass: '0.....5.....', arp: '0.1.2.3.2.1.', lead: 'x.....x..x..', bw: 'sine', bv: .42, bl: 6, aw: 'sine', av: .12, al: 2.5, lw: 'sine', lv: .22, ao: 1, lo: 1 },
-  { n: 'SWING',     bpm: 132, key: 58, sc: 'mix',  spb: 8, sdiv: 2, sw: .33, ch: [[2, 'm7'], [7, '7'], [0, 'M7'], [9, '7']], bass: '0.3.5.8.', arp: '..c...c.', lead: 'x.xx.x.x', k: 'x.......', h: 'h.hhh.hh', bw: 'triangle', bv: .55, bl: 1.8, aw: 'triangle', av: .08, al: 1.2, lv: .07, kv: .25, hv: .07, ao: 1, lo: 1 },
-  { n: 'MARCH',     bpm: 116, key: 62, sc: 'maj',  ch: [[0, 'M'], [7, 'M'], [0, 'M'], [7, '7']],     bass: '0...5...0...5...', arp: 'c.......c.......', lead: 'x..xx...x..xx...', k: 'x.......x.......', s: 'x.xx..x.x.xx..x.', bw: 'triangle', bv: .5, aw: 'triangle', av: .1, al: 2, sv: .16, kv: .45, ao: 1, lo: 1 },
-  { n: 'PIRATE',    bpm: 118, key: 62, sc: 'dor',  spb: 12, sdiv: 3, ch: [[0, 'm'], [10, 'M'], [0, 'm'], [7, 'm']], bass: '0.....5.....', arp: 'c..c..c..c..', lead: 'x.xx.xx.xx.x', k: 'x.....x.....', p: 'p.....p..p..', bw: 'triangle', bv: .5, av: .035, al: .6, pf: 700, pv: .25, kv: .4, ao: 1, lo: 1 },
-  { n: 'HOUSE',     bpm: 124, key: 64, sc: 'mix',  ch: [[0, 'M'], [10, 'M'], [5, 'M'], [0, 'M']],    bass: '..0...0...0...0.', arp: 'c...c...c...c...', lead: 'x.x...x.x.x...x.', k: 'x...x...x...x...', s: '....x.......x...', h: '..h...h...h...h.', bw: 'sawtooth', bv: .17, bl: 1.4, av: .04, al: .5, hv: .14, sv: .3, ao: 1, lo: 1 },
-  { n: 'SAMBA',     bpm: 104, key: 60, sc: 'maj',  ch: [[0, 'M'], [0, 'M'], [7, '7'], [7, '7']],     bass: '0..50..50..50..5', arp: 'c..c..c...c..c..', lead: 'x.x..x.x..x.x...', k: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', p: 'p.pp.p.pp.p.pp.p', bw: 'triangle', bv: .5, bl: 1.5, av: .035, al: .5, hv: .045, pf: 1800, pv: .14, kv: .5, loct: 1, ao: 1, lo: 2 },
-  { n: 'MINUET',    bpm: 120, key: 67, sc: 'maj',  spb: 12, ch: [[0, 'M'], [7, 'M'], [5, 'M'], [7, '7']], bass: '0...0...0...', arp: '0.2.1.2.0.2.', lead: 'x...x.x.x...', bw: 'triangle', bv: .45, bl: 3.5, av: .045, al: .5, lw: 'triangle', lv: .16, ao: 1, lo: 1 },
-  { n: 'SLOW MOTION', bpm: 66, key: 60, sc: 'lyd',  ch: [[0, 'M7'], [2, 'M'], [9, 'm7'], [2, 'M']],    bass: '0...............', arp: '0...1...2...3...', lead: 'x.......x...x...', k: 'x...............', s: '........x.......', bw: 'sine', bv: .45, bl: 14, aw: 'sine', av: .1, al: 4, lw: 'sine', lv: .2, kv: .35, sv: .15, ao: 1, lo: 1 },
-  { n: 'SANDSTORM', bpm: 88,  key: 59, sc: 'phr',  ch: [[0, 'M'], [1, 'M'], [10, 'm'], [0, 'M']],    bass: '0.......0..0....', arp: '....0.......1...', lead: 'x...xx.xx...x.x.', p: 'p...p.p.....p...', w: 'w.......w.......', bw: 'triangle', bv: .5, bl: 3, av: .05, al: 3, lw: 'sawtooth', lv: .055, pf: 260, pv: .3, wv: .12, ao: 1, lo: 1 },
-  { n: 'FEVER',     bpm: 156, key: 56, sc: 'min',  ch: [[0, 'm'], [8, 'M'], [10, 'M'], [0, 'm']],    bass: '0.0.8.0.0.0.8.0.', arp: '0213021302130213', lead: 'x.x.x.xxx.x.x.x.', k: 'x...x...x...x...', s: '....x.......x...', h: '..h...h...h...h.', bw: 'sawtooth', bv: .15, bl: .9, aw: 'sawtooth', av: .025, al: .7, lv: .07, sv: .4, hv: .1, loct: 1, ao: 2, lo: 1 },
-  { n: 'SHADOW',    bpm: 90,  key: 57, sc: 'har',  ch: [[0, 'm'], [1, 'd'], [0, 'm'], [6, 'd']],     bass: '0.......0.......', arp: '0..1..2..1..0...', lead: 'x.....x...x.....', p: 'p...p...p...p...', bw: 'sine', bv: .42, bl: 6, aw: 'triangle', av: .06, al: 2, lw: 'triangle', lv: .14, pf: 2200, pv: .07, ao: 1, lo: 1 },
-  { n: 'SURF',      bpm: 152, key: 64, sc: 'mix',  ch: [[0, 'M'], [0, 'M'], [5, 'M'], [7, 'M']],     bass: '0.0.0.5.8.8.5.3.', arp: '0000111122221111', lead: 'x.x.x.x.x...x...', k: 'x.....x.x.......', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.', bw: 'triangle', bv: .5, bl: 1.6, aw: 'sawtooth', av: .03, al: .8, lv: .08, hv: .08, ao: 1, lo: 1 },
-  { n: 'IMPACT',    bpm: 140, key: 50, sc: 'min',  ch: [[0, 'm'], [0, 'm'], [8, 'M'], [10, 'M']],    bass: '0..0..0.....0.0.', arp: '................', lead: 'x...x.x.......x.', k: 'x.........x.....', s: '........x.......', p: 'p.......p.......', bw: 'sawtooth', bv: .2, bl: 3, lw: 'sawtooth', lv: .06, kv: .8, sv: .55, pf: 120, pv: .4, lo: 2 },
-  { n: 'HERO',      bpm: 138, key: 62, sc: 'maj',  ch: [[0, 'M'], [10, 'M'], [5, 'M'], [7, 'M']],    bass: '0...0.0.0...0.0.', arp: 'c.......c...c...', lead: 'x..x..x.x...x...', k: 'x.....x.x.......', s: '....x.......x...', h: '..h...h...h...h.', bw: 'triangle', bv: .55, bl: 1.6, av: .05, al: 2, lv: .08, loct: 1, ao: 1, lo: 1 },
-  { n: 'DOUBLE',    bpm: 168, key: 67, sc: 'maj',  ch: [[0, 'M'], [9, 'm'], [2, 'm'], [7, '7']],     bass: '0.5.8.5.0.5.8.5.', arp: '0123012301230123', lead: 'xx.xx.x.xx.xx.x.', k: 'x...x...x...x...', h: '..h...h...h...h.', bw: 'square', bv: .18, bl: .9, av: .03, al: .6, lv: .07, loct: 1, ao: 2, lo: 1 },
-  { n: 'BOSS',      bpm: 184, key: 52, sc: 'har',  ch: [[0, 'm'], [1, 'M'], [8, 'M'], [11, 'd']],    bass: '0.000.000.000.0.', arp: 'c.c.c.c.....c.c.', lead: 'x.xxx.xxx.xxx.xx', k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', p: '............pppp', bw: 'sawtooth', bv: .14, bl: .8, aw: 'sawtooth', av: .045, al: .8, lv: .07, sv: .5, hv: .07, pf: 180, pv: .35, loct: 1, ao: 1, lo: 2 },
+  // —— 2～18 级：一半是公版古典名曲（逐音写死），一半是 FC 游戏风格的原创曲；音色仿 FC：25% 方波主旋律、12.5% 方波伴奏、三角波低音、噪音鼓 ——
+  { n: 'MUSHROOM HOP', bpm: 150, key: 60, ch: [[0, 'M'], [5, 'M'], [0, 'M'], [7, 'M'], [5, 'M'], [7, 'M'], [0, 'M'], [0, 'M']], bass: '0...5...0...5.5.', arp: '..c...c...c...c.', h: '..h...h...h...h.', k: 'x.......x.......',
+    mel: 'E5:2 G5:2 R:2 C6:2 R:2 G5:2 E5:4 | F5:2 A5:2 R:2 F5:2 D5:4 R:4 | E5:2 G5:2 R:2 C6:2 R:2 D6:2 E6:4 | D6:2 C6:2 A5:2 G5:2 R:8 | A5:2 A5:2 R:2 G5:2 R:2 E5:2 C5:4 | D5:2 E5:2 R:2 G5:2 E5:4 R:4 | C5:2 E5:2 G5:2 C6:2 R:2 B5:2 A5:2 G5:2 | C6:4 G5:2 C5:2 R:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.5, av: .04, al: .6, lv: .07, hv: .06, kv: .35, stac: 1.6 },
+  { n: 'LULLABY', bpm: 80, key: 60, spb: 12, ch: [[0, 'M'], [0, 'M'], [0, 'M'], [5, 'M'], [7, '7'], [7, '7'], [7, '7'], [0, 'M']], bass: '0...........', arp: '....0...1...',
+    mel: 'E4:2 E4:2 G4:8 | E4:2 E4:2 G4:8 | E4:2 G4:2 C5:4 B4:4 | A4:4 A4:4 G4:4 | D4:2 E4:2 F4:4 D4:4 | D4:2 E4:2 F4:8 | D4:2 F4:2 B4:2 A4:2 G4:4 | B4:4 C5:8', mt: 12,
+    bw: 'triangle', bv: .45, bl: 11, aw: 'sine', av: .1, al: 4, lw: 'triangle', lv: .2, ao: 1 },
+  { n: 'ISLAND RUN', bpm: 160, key: 53, ch: [[0, 'M'], [5, 'M'], [7, '7'], [0, 'M'], [5, 'M'], [7, '7'], [7, '7'], [0, 'M']], bass: '0.8.5.8.0.8.5.8.', arp: '..c...c...c...c.', k: 'x.......x.......', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.',
+    mel: 'C5:2 F5:2 A5:2 C6:4 A5:2 F5:4 | G5:2 A#5:2 D6:4 C6:2 A#5:2 A5:4 | G5:2 A5:2 A#5:2 G5:2 E5:2 C5:2 E5:2 G5:2 | F5:4 A5:4 C6:4 R:4 | D6:2 C6:2 A5:2 F5:2 D6:2 C6:2 A5:2 F5:2 | A#5:2 A5:2 G5:2 E5:2 C5:4 R:4 | D5:2 E5:2 F5:2 G5:2 A5:2 A#5:2 B5:2 C6:2 | F6:4 C6:2 A5:2 F5:4 R:4',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.6, av: .035, al: .6, lv: .07, sv: .2, hv: .06, kv: .35, ao: 1 },
+  { n: 'MINUET IN G', bpm: 132, key: 55, spb: 12, ch: [[0, 'M'], [0, 'M'], [5, 'M'], [0, 'M'], [5, 'M'], [0, 'M'], [7, 'M'], [7, '7']], bass: '0...5...8...', arp: '..c.......c.',
+    mel: 'D5:4 G4:2 A4:2 B4:2 C5:2 | D5:4 G4:4 G4:4 | E5:4 C5:2 D5:2 E5:2 F#5:2 | G5:4 G4:4 G4:4 | C5:4 D5:2 C5:2 B4:2 A4:2 | B4:4 C5:2 B4:2 A4:2 G4:2 | F#4:4 G4:2 A4:2 B4:2 G4:2 | A4:12',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .45, bl: 3.5, av: .03, al: .5, lv: .075, ao: 1 },
+  { n: 'CASTLE QUEST', bpm: 132, key: 50, ch: [[0, 'm'], [10, 'M'], [0, 'm'], [7, 'M'], [0, 'm'], [7, 'M'], [7, '7'], [0, 'm']], bass: '0.0.0.0.0.0.0.0.', arp: '0.1.2.1.0.1.2.1.', k: 'x.......x.......', s: '....x.......x...',
+    mel: 'D5:4 F5:2 A5:2 G#5:4 A5:4 | A#5:2 A5:2 G5:2 F5:2 E5:4 A4:4 | D5:4 F5:2 A5:2 D6:4 C6:4 | A#5:2 A5:2 G5:2 A#5:2 A5:8 | F5:2 G5:2 A5:2 F5:2 D5:4 F5:4 | E5:2 F5:2 G5:2 E5:2 C#5:4 E5:4 | D5:2 E5:2 F5:2 G5:2 A5:2 A#5:2 C#6:2 E6:2 | D6:8 A5:4 D5:4',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .45, bl: 1.6, av: .03, al: .8, lv: .07, sv: .2, kv: .35, ao: 1 },
+  { n: 'CUCARACHA', bpm: 150, key: 53, ch: [[0, 'M'], [0, 'M'], [7, '7'], [7, '7'], [7, '7'], [0, 'M'], [0, 'M'], [0, 'M']], bass: '0...5...0...5...', arp: '..c...c...c...c.', k: 'x...x...x...x...', s: '....x.......x...', h: '..h...h...h...h.', p: 'p..p..p...p.p...',
+    mel: 'C5:2 C5:2 C5:2 F5:4 A5:6 | C5:2 C5:2 C5:2 F5:4 A5:6 | F5:2 F5:2 E5:2 E5:2 D5:2 D5:2 C5:4 | C5:2 C5:2 C5:2 E5:4 G5:6 | C5:2 C5:2 C5:2 E5:4 G5:6 | C6:2 D6:2 C6:2 A#5:2 A5:2 G5:2 F5:4 | F5:4 A5:4 C6:4 A5:4 | F5:12 R:4',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.6, av: .04, al: .5, lv: .075, hv: .1, kv: .4, sv: .25, pf: 1500, pv: .15, ao: 1 },
+  { n: 'TURKISH MARCH', bpm: 116, key: 57, ch: [[0, 'm'], [0, 'm'], [0, 'm'], [7, 'M']], bass: '0...5...0...5...', arp: '..c...c...c...c.', h: 'h...h...h...h...', p: '..p...p...p...p.',
+    mel: 'B4:1 A4:1 G#4:1 A4:1 C5:4 D5:1 C5:1 B4:1 C5:1 E5:4 | F5:1 E5:1 D#5:1 E5:1 B5:1 A5:1 G#5:1 A5:1 B5:1 A5:1 G#5:1 A5:1 C6:4 | A5:2 B5:2 C6:2 B5:2 A5:2 G#5:2 A5:2 E5:2 | F5:2 D5:2 C5:2 B4:2 A4:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.6, av: .03, al: .5, lv: .075, hv: .06, pf: 1600, pv: .12, ao: 1 },
+  { n: 'ODE TO JOY', bpm: 120, key: 60, ch: [[0, 'M'], [7, 'M'], [0, 'M'], [7, 'M'], [0, 'M'], [7, 'M'], [0, 'M'], [0, 'M']], bass: '0...5...0...5...', arp: '0.1.2.1.0.1.2.1.',
+    mel: 'E5:4 E5:4 F5:4 G5:4 | G5:4 F5:4 E5:4 D5:4 | C5:4 C5:4 D5:4 E5:4 | E5:6 D5:2 D5:8 | E5:4 E5:4 F5:4 G5:4 | G5:4 F5:4 E5:4 D5:4 | C5:4 C5:4 D5:4 E5:4 | D5:6 C5:2 C5:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .45, bl: 3.5, av: .03, al: .9, lv: .075, ao: 1 },
+  { n: 'FUR ELISE', bpm: 72, key: 57, spb: 12, ch: [[0, 'm']], bass: '0.....5.....',
+    mel: 'E5:1 D#5:1 E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1 A4:2 R:1 C4:1 | E4:1 A4:1 B4:2 R:1 E4:1 G#4:1 B4:1 C5:2 R:1 E4:1 | E5:1 D#5:1 E5:1 D#5:1 E5:1 B4:1 D5:1 C5:1 A4:2 R:1 C4:1 | E4:1 A4:1 B4:2 R:1 E4:1 C5:1 B4:1 A4:4',
+    bw: 'triangle', bv: .4, bl: 5, lw: 'triangle', lv: .2 },
+  { n: 'SAND PALACE', bpm: 100, key: 52, ch: [[0, 'M'], [0, 'M'], [0, 'M'], [0, 'M'], [0, 'M'], [1, 'M'], [10, 'm'], [0, 'M']], bass: '0.......0..0....', p: 'p..p..p...p.p...', w: 'w.......w.......',
+    mel: 'E5:2 F5:2 G#5:4 F5:2 E5:2 R:4 | E5:2 F5:2 G#5:2 A5:2 B5:2 A5:2 G#5:2 F5:2 | E5:4 R:2 B4:2 C5:2 B4:2 G#4:2 A4:2 | B4:12 R:4 | E5:2 F5:2 G#5:4 A5:2 B5:2 C6:4 | B5:2 A5:2 G#5:2 F5:2 G#5:2 F5:2 E5:4 | D5:2 E5:2 F5:2 E5:2 D5:2 C5:2 B4:2 C5:2 | E5:12 R:4',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 3, lv: .075, pf: 260, pv: .3, wv: .12 },
+  { n: 'BUMBLEBEE', bpm: 150, key: 57, ch: [[0, 'm'], [0, 'm'], [0, 'm'], [7, '7'], [5, 'm'], [0, 'm'], [7, '7'], [0, 'm']], bass: '0...0...0...0...', k: 'x...x...x...x...', h: '..h...h...h...h.', s: '....x.......x...',
+    mel: 'E6:1 D#6:1 D6:1 C#6:1 D6:1 C#6:1 C6:1 B5:1 C6:1 B5:1 A#5:1 A5:1 G#5:1 G5:1 F#5:1 F5:1 | E5:1 D#5:1 D5:1 C#5:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 D#5:1 D5:1 C#5:1 C5:1 C#5:1 D5:1 D#5:1 | E5:1 D#5:1 D5:1 C#5:1 D5:1 C#5:1 C5:1 B4:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 F5:1 E5:1 D#5:1 | E5:1 D#5:1 D5:1 C#5:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 F5:1 F#5:1 G5:1 G#5:1 A5:1 A#5:1 B5:1 | A5:1 G#5:1 G5:1 F#5:1 G5:1 F#5:1 F5:1 E5:1 F5:1 E5:1 D#5:1 D5:1 C#5:1 C5:1 B4:1 A#4:1 | A4:1 A#4:1 B4:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 F5:1 E5:1 D#5:1 D5:1 C#5:1 C5:1 B4:1 A#4:1 | A4:1 A#4:1 B4:1 C5:1 C#5:1 D5:1 D#5:1 E5:1 F5:1 F#5:1 G5:1 G#5:1 A5:1 A#5:1 B5:1 C6:1 | A5:4 E5:4 A4:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 3.5, lv: .065, kv: .35, hv: .07, sv: .25 },
+  { n: 'TOCCATA', bpm: 76, key: 50, ch: [[0, 'm'], [7, '7'], [0, 'm'], [7, '7'], [0, 'm'], [7, '7'], [0, 'm'], [0, 'm']], bass: '0...............',
+    mel: 'A5:1 G5:1 A5:10 R:4 | G5:1 F5:1 E5:1 D5:1 C#5:4 D5:8 | A4:1 G4:1 A4:10 R:4 | E4:2 F4:2 C#4:4 D4:8 | A3:1 G3:1 A3:10 R:4 | G3:1 F3:1 E3:1 D3:1 C#3:4 D3:8 | D4:2 F4:2 A4:2 D5:2 F5:2 A5:2 D6:4 | C#6:4 E6:4 D6:8',
+    bw: 'triangle', bv: .5, bl: 15, lw: 'p25', lv: .08, loct: 1 },
+  { n: 'MOUNTAIN KING', bpm: 96, accel: .1, accelMax: 1.1, key: 47, ch: [[0, 'm'], [7, 'M'], [0, 'm'], [0, 'm'], [7, 'M'], [7, 'M'], [7, 'M'], [7, '7']], bass: '0...0...0...0...', k: 'x...x...x...x...', h: '..h...h...h...h.',
+    mel: 'B4:2 C#5:2 D5:2 E5:2 F#5:2 D5:2 F#5:4 | F5:2 C#5:2 F5:4 E5:2 C5:2 E5:4 | B4:2 C#5:2 D5:2 E5:2 F#5:2 D5:2 F#5:2 B5:2 | A5:2 F#5:2 D5:2 F#5:2 A5:8 | F#5:2 G#5:2 A#5:2 B5:2 C#6:2 A#5:2 C#6:4 | D6:2 A#5:2 D6:4 C#6:2 A#5:2 C#6:4 | F#5:2 G#5:2 A#5:2 B5:2 C#6:2 A#5:2 C#6:2 F#6:2 | E6:2 C#6:2 A#5:2 C#6:2 E6:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.2, lv: .075, kv: .35, hv: .06, stac: 1.3 },
+  { n: 'STREET BRAWL', bpm: 152, key: 52, ch: [[0, '5'], [0, '5'], [0, '5'], [0, '5'], [8, '5'], [5, '5'], [3, '5'], [0, '5']], bass: '0.0.0.0.0.0.0.0.', arp: 'c.....c...c.....', k: 'x.....x.x.......', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.',
+    mel: 'E5:2 E5:2 G5:2 E5:2 A5:2 E5:2 B5:2 A5:2 | G5:2 E5:2 D5:2 E5:2 R:8 | E5:2 E5:2 G5:2 E5:2 A5:2 E5:2 C6:2 B5:2 | A5:2 G5:2 A5:2 B5:2 R:8 | C6:4 B5:2 A5:2 B5:4 A5:2 G5:2 | A5:4 G5:2 F#5:2 G5:4 E5:4 | D5:2 E5:2 G5:2 A5:2 B5:2 D6:2 E6:4 | E6:2 B5:2 G5:2 E5:2 R:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.2, av: .045, al: 1.5, lv: .075, sv: .4, hv: .07, kv: .5 },
+  { n: 'COMMANDO', bpm: 160, key: 55, ch: [[0, 'm'], [10, 'M'], [0, 'm'], [10, 'M'], [0, 'm'], [8, 'M'], [5, 'm'], [0, 'm']], bass: '0.0.8.0.0.0.8.0.', arp: '0.1.2.1.0.1.2.1.', k: 'x.....x.x.......', s: '....x.......x.xx', h: 'h.h.h.h.h.h.h.h.',
+    mel: 'G4:2 G4:2 A#4:2 C5:2 D5:4 C5:2 A#4:2 | C5:2 A#4:2 A4:2 F4:2 G4:8 | G4:2 G4:2 A#4:2 C5:2 D5:4 F5:2 G5:2 | F5:2 D5:2 C5:2 A#4:2 C5:8 | D5:2 D5:2 F5:2 D5:2 G5:4 F5:2 D5:2 | D#5:2 D5:2 C5:2 A#4:2 C5:4 D5:4 | G5:2 F5:2 D#5:2 D5:2 C5:2 D5:2 D#5:2 F5:2 | G5:8 D5:4 G4:4', mt: 12,
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.2, av: .03, al: .8, lv: .075, sv: .35, hv: .06, kv: .5 },
+  { n: 'TWIN DRAGONS', bpm: 132, key: 57, ch: [[0, 'm7'], [10, 'M'], [0, 'm7'], [7, 'm'], [3, 'M'], [5, 'm'], [0, 'm'], [0, 'm']], bass: '0..0..8.0..0.78.', arp: '..c...c...c..c..', k: 'x..x......x.....', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.',
+    mel: 'A4:4 C5:2 D5:2 E5:4 D5:2 C5:2 | D5:2 E5:2 G5:2 E5:2 D5:4 C5:4 | A4:4 C5:2 D5:2 E5:4 G5:2 A5:2 | G5:2 E5:2 D5:2 E5:2 A4:8 | C5:2 C5:2 D5:2 E5:2 G5:4 E5:4 | F5:2 F5:2 E5:2 D5:2 E5:8 | A5:2 G5:2 E5:2 D5:2 C5:2 D5:2 E5:2 G5:2 | A5:8 E5:4 A4:4', mt: 0,
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .5, bl: 1.2, av: .035, al: .6, lv: .065, loct: 1, sv: .35, hv: .06, kv: .5 },
+  { n: 'FORTRESS', bpm: 176, key: 52, ch: [[0, 'm'], [0, 'm'], [5, 'm'], [7, 'M'], [0, 'm'], [7, 'M'], [0, 'm'], [0, 'm']], bass: '0000000000000000', arp: 'c.......c...c...', k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh', p: '............pppp',
+    mel: 'E5:1 F#5:1 G5:1 A5:1 B5:4 A5:2 G5:2 F#5:2 D#5:2 | E5:4 B4:4 E5:2 G5:2 B5:4 | C6:2 B5:2 A5:2 G5:2 A5:2 G5:2 F#5:2 E5:2 | D#5:4 F#5:4 B5:8 | E6:2 D#6:2 E6:2 B5:2 C6:2 B5:2 A5:2 G5:2 | A5:2 G5:2 F#5:2 E5:2 F#5:4 B4:4 | E5:2 G5:2 B5:2 E6:2 D#6:2 B5:2 F#5:2 D#5:2 | E5:8 R:8',
+    bw: 'triangle', lw: 'p25', aw: 'p12', bv: .45, bl: .8, av: .045, al: .8, lv: .075, loct: 1, kv: .4, sv: .5, hv: .07, pf: 180, pv: .35 },
 ];
 const degSemi = (sc, d) => SC[sc][((d % SC[sc].length) + SC[sc].length) % SC[sc].length] + 12 * Math.floor(d / SC[sc].length);
 // 主旋律：8 小节。强拍落在和弦音上，其余在音阶里一两级一两级地走；第 5、6 小节重复第 1、2 小节，听起来像一首有主题的曲子
 // 写死的旋律：「E5:4 B4:2 …」→ 每步一个音或空
 function parseMel(st){
-  const total = (st.spb || 16) * 8, out = Array(total).fill(null), NN = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const spb = st.spb || 16, toks = st.mel.split(/\s+/).filter(t => t && t !== '|'), sum = toks.reduce((a, t) => a + +t.split(':')[1], 0), total = Math.ceil(sum / spb) * spb, out = Array(total).fill(null), NN = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
   let i = 0;
-  for (const tok of st.mel.split(/\s+/)) {
-    if (!tok || tok === '|') continue;
+  for (const tok of toks) {
     const [nm, len] = tok.split(':'), L = +len;
-    if (nm !== 'R' && i < total) { const m = nm.match(/^([A-G])(#?)(\d)$/); out[i] = { n: NN[m[1]] + (m[2] ? 1 : 0) + 12 * (+m[3] + 1), len: L }; }
+    if (nm !== 'R' && i < total) { const m = nm.match(/^([A-G])(#?)(\d)$/); out[i] = { n: NN[m[1]] + (m[2] ? 1 : 0) + 12 * (+m[3] + 1) + (st.mt || 0), len: L }; }
     i += L;
   }
   return out;
@@ -750,14 +789,14 @@ const Music = {
     this.iv = setInterval(() => this.tick(), 25);
   },
   stop(){ this.playing = false; clearInterval(this.iv); },
-  load(lv){ this.lv = lv; this.st = STYLES[Math.max(1, Math.min(STYLES.length, lv)) - 1]; this.step = 0; this.lead = makeLead(this.st, lv); },
+  load(lv){ this.lv = lv; this.st = STYLES[Math.max(1, Math.min(STYLES.length, lv)) - 1]; this.step = 0; this.loops = 0; this.lead = makeLead(this.st, lv); },
   tick(){
     const c = Au.ctx; if (!c) return;
     while (this.next < c.currentTime + .12) {
       if (this.step % (this.st.spb || 16) === 0 && this.lv !== level) this.load(level); // 升级了：下一小节开头换成新一级的曲子
-      const st = this.st, sd = 60 / st.bpm / (st.sdiv || 4);
+      const st = this.st, sd = 60 / (st.bpm * (1 + Math.min(st.accelMax || 0, (st.accel || 0) * this.loops))) / (st.sdiv || 4); // accel：每绕一遍曲子快一点（山魔王）
       this.play(this.step, this.next + (st.sw && this.step % 2 ? sd * st.sw : 0), sd);
-      this.next += sd; this.step = (this.step + 1) % ((st.spb || 16) * 8);
+      this.next += sd; this.step = (this.step + 1) % this.lead.length; if (!this.step) this.loops++;
     }
   },
   play(step, t, sd){
@@ -775,9 +814,10 @@ const Music = {
       Au.tone(midi(n), sd * (s.al || .9), s.aw || 'square', s.av || .06, t, 0, out);
     }
     const L = this.lead[step];
-    if (L) { // 主旋律
-      Au.tone(midi(L.n), sd * L.len * .95, s.lw || 'square', s.lv || .085, t, 0, out);
-      if (s.loct) Au.tone(midi(L.n + 12), sd * L.len * .95, s.lw || 'square', (s.lv || .085) * .5, t, 0, out);
+    if (L) { // 主旋律（stac：断奏，每个音最多唱这么几步）
+      const len = Math.min(L.len, s.stac || 99);
+      Au.tone(midi(L.n), sd * len * .95, s.lw || 'square', s.lv || .085, t, 0, out);
+      if (s.loct) Au.tone(midi(L.n + 12), sd * len * .95, s.lw || 'square', (s.lv || .085) * .5, t, 0, out);
     }
     if (at(s.k) === 'x') Au.tone(150, .09, 'sine', s.kv || .7, t, .3, out);
     if (at(s.s) === 'x') Au.noise(.08, s.sv || .35, t, 'bandpass', 1800, out);
