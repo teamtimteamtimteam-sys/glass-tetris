@@ -897,6 +897,7 @@ const LEVEL_FEATURE = {}; // 每级的主题方块已取消（2026-10-21），�
 // n 英文名、cn 升级时显示的短中文、d 暂停页里的完整说明；其余字段是规则开关：
 // single 单消得分倍数 / tetris 四消倍数 / combo 连击奖励倍数 / lineMul 所有消行得分倍数 / drop 直落每格得分倍数
 // lock 落地可调整时间(ms) / grav 下落间隔倍数(>1 更慢) / sp 特殊方块出现率倍数(0 = 不出) / noGhost 不显示落点影子 / freeHold HOLD 不限次数
+// allSp 这一级全部换成特殊方块
 // sweep 每 N 块清最底下一行 / sand 每 N 块吹走顶上一格 / tide 每 N 块底部升一行障碍 / treasure 藏一个金币格 / save 本级第一次顶到天花板时复活一次
 const LEVEL_RULES = {
   2:  { n: 'SINGLE BONUS',  cn: '单消×3',     d: '消 1 行的得分 ×3', single: 3 },
@@ -905,7 +906,7 @@ const LEVEL_RULES = {
   5:  { n: 'SWEEPER',       cn: '清道夫',     d: '每落下 10 块，自动清掉最底下一行', sweep: 10 },
   6:  { n: 'TREASURE',      cn: '寻宝',       d: '堆积里藏着一个金币格，消掉它所在的那一行额外得 1000×级别', treasure: 1 },
   7:  { n: 'COMBO PARTY',   cn: '连击派对',   d: '连击奖励 ×3', combo: 3 },
-  8:  { n: 'CARNIVAL',      cn: '特殊嘉年华', d: '特殊方块出现率 ×3', sp: 3 },
+  8:  { n: 'CARNIVAL',      cn: '全特殊块',   d: '这一级出现的全部是特殊方块（各种特殊方块按平时的比例出现）', allSp: 1 },
   9:  { n: 'CLASSIC',       cn: '经典回归',   d: '只出现七种普通方块', sp: 0 },
   10: { n: 'SLOW MOTION',   cn: '慢动作',     d: '方块下落速度慢 40%', grav: 1.4 },
   11: { n: 'SANDSTORM',     cn: '风沙',       d: '每落下 6 块，堆积最顶上随机一格被风吹走', sand: 6 },
@@ -930,6 +931,15 @@ function syncLevelFeature(){
   if (qLevel !== level) { // 换级了：把上一级改过的 NEXT 原样换回去
     for (let i = 0; i < qOrig.length; i++) if (qOrig[i] != null) { queue[i] = qOrig[i]; qOrig[i] = null; }
     qLevel = level;
+  }
+  if (rules().allSp) { // 全特殊块：队列里的普通方块按特殊方块的比例换成特殊方块；原来的记在 qOrig，离开这一级时原样换回去
+    for (let i = 0; i < queue.length; i++) if (qOrig[i] == null && !isSpecial(queue[i])) {
+      qOrig[i] = queue[i];
+      let pick = rng() * SHARE_SUM, acc = 0;
+      for (const [t, f] of SPECIAL_SHARE) { acc += f; if (pick < acc) { queue[i] = t; break; } }
+      if (!isSpecial(queue[i])) queue[i] = SPECIAL_SHARE[0][0];
+    }
+    return;
   }
   const f = LEVEL_FEATURE[level]; if (!f) return;
   for (let i = 0; i < 3 && i < queue.length; i++) if (qOrig[i] == null) { qOrig[i] = queue[i]; if (!isSpecial(queue[i]) && !f.t.includes(queue[i]) && rng() < f.force) queue[i] = f.t[Math.floor(rng() * f.t.length)]; }
