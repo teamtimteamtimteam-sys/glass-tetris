@@ -315,6 +315,12 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   Q:'#7b6657', Q2:'#a48d7b',                                // 重压块：铸铁般的深棕
   U:'#566074', US:'#a9b3c6', US2:'#e2e8f2', UC:'#98a2b6', // 钢铁块：铁灰身体 + 钢格（US 完好，UC 已裂）
   Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
+  h:'#c96f3b', h2:'#e89a62', hB:'#8f5530', hB2:'#b87448',   // 铰链块：两节铜色铰链板（一深一浅两半），连接处一颗铰链销
+  v:'#c9a227', v2:'#f0cf5a', vS:'#c9a227', vS2:'#f0cf5a',   // 电梯块：黄铜色电梯门，上面那格亮着 ▲
+  x:'#22c7c7', x2:'#8ff0f0',                                // 置换块：青色，⇄ 箭头
+  b:'#a8703a', bL:'#d6a062', b3:'#a8703a', b2:'#a8703a', b1:'#8a5a2a', // 桥梁块：木板；b3/b2/b1 = 还能撑几回合（b1 已经裂了）
+  n:'#2b7fd4', n2:'#6fb6ff', nR:'#2b7fd4', nR2:'#6fb6ff', nL:'#2b7fd4', nL2:'#6fb6ff', // 潮汐块：海蓝色浪花；下落时显示往右 / 往左的箭头
+  f:'#ff9ccf', f2:'#ffd0e8',                                // 寄存块：粉色的气球云
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
@@ -382,21 +388,34 @@ const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i) => t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i) => t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? 'xchg' : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'R' ? 'waveR' : k[1] === 'L' ? 'waveL' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
 SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]]];
-const isSpecial = t => t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd';
+// h 铰链块：横着 4 格，左右两半各 2 格，中间一颗铰链销。落地后如果有一半底下完全悬空，它绕铰链转 90°（优先往下折），折下去后还能接着往下沉
+SHAPES.h = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[0, 1], [1, 1], [2, 1], [3, 1]] : [[2, 0], [2, 1], [2, 2], [2, 3]]);
+// v 电梯块：竖着两格，不能转。落地后把左边或右边相邻一列最上面那一段连着的方块整体抬升一格（上面要有空位；两边都行时挑能凑满行的）
+SHAPES.v = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
+// x 置换块：两格，能横竖转。落地后在它所在的每一行里，把一个实心格和最近的空格对调（优先把被盖住的空洞换到露天的位置）
+SHAPES.x = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[0, 0], [1, 0]] : [[0, 0], [0, 1]]);
+// b 桥梁块：横着 4 格的木板，不能转。悬空的跨度最多 2 格（再宽的那段当场塌下去）；撑两回合后，底下没东西托着的部分连同上面压着的一起往下掉
+SHAPES.b = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0], [3, 0]]);
+// n 潮汐块：横着两格；旋转键切换方向（往右 / 往左）。落地后它所在的整行循环平移一格，从一边出去的格子从另一边进来
+SHAPES.n = [0, 1, 2, 3].map(() => [[0, 0], [1, 0]]);
+// f 寄存块：T 形。落地后先悬浮在原地（不挡路），接下来两块方块可以从它身上穿过去；之后它才真正落下
+SHAPES.f = SHAPES.T;
+const isSpecial = t => t === 'h' || t === 'v' || t === 'x' || t === 'b' || t === 'n' || t === 'f' || t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
 // 特殊方块的占比（2026-10-21 起：三格中条、换位块各 0.25%，其余每种 1%；塌落块算一种，S、Z 形各占一半）
 // 箭头、火焰、刀刃、牵连四种已删除（代码还在，但不会再出现）
-const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .02]];
+// 2026-10-23 加了铰链、电梯、置换、桥梁、潮汐、寄存六种，各 1.5%
+const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .02], ['h', .015], ['v', .015], ['x', .015], ['b', .015], ['n', .015], ['f', .015]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES;
 const SP_DRAWS = 6; // 每袋固定抽 6 次（够「特殊方块 ×3」用）；次数固定，所以随机数用量不随级别变化 // 每一袋 7 块里额外混进一块的概率
@@ -541,6 +560,35 @@ function makeBlock(color, D, mark){
     if (mark === 'crack') { g.fillStyle = '#2a2f3d'; for (const [px, py] of [[5, 1], [5, 2], [4, 3], [4, 4], [5, 5], [6, 6], [5, 7], [5, 8], [3, 5], [7, 4]]) g.fillRect(px * u, py * u, u, u); }
   }
   if (mark === 'plug') { g.fillStyle = shade(color, -.32); g.fillRect(3 * u, 4 * u, 4 * u, u); g.fillRect(4 * u, 5 * u, 2 * u, u); g.fillRect(4 * u, 6 * u, 2 * u, u); } // 塞子：一个朝下的小箭头
+  if (mark === 'hinge') { // 铰链板：四角铆钉 + 一道压痕
+    g.fillStyle = shade(color, .5); for (const [px, py] of [[2, 2], [7, 2], [2, 7], [7, 7]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = shade(color, -.35); g.fillRect(3 * u, 5 * u, 4 * u, u);
+  }
+  if (mark === 'lift' || mark === 'liftS') { // 电梯门：中间一道门缝、两扇门板；上面那格亮着一个 ▲
+    g.fillStyle = shade(color, -.5); g.fillRect(Math.round(D / 2 - u / 2), (mark === 'liftS' ? 5 : 1) * u, u, (mark === 'liftS' ? 4 : 8) * u);
+    g.fillStyle = shade(color, .35); g.fillRect(2 * u, (mark === 'liftS' ? 5 : 2) * u, u, (mark === 'liftS' ? 3 : 6) * u); g.fillRect(D - 3 * u, (mark === 'liftS' ? 5 : 2) * u, u, (mark === 'liftS' ? 3 : 6) * u);
+    if (mark === 'liftS') { g.fillStyle = '#fff6b0'; g.fillRect(4 * u, u, 2 * u, u); g.fillRect(3 * u, 2 * u, 4 * u, u); g.fillRect(2 * u, 3 * u, 6 * u, u); }
+  }
+  if (mark === 'xchg') { // 置换：上面一支朝右、下面一支朝左的白箭头
+    g.fillStyle = '#fff';
+    g.fillRect(2 * u, 3 * u, 5 * u, u); g.fillRect(6 * u, 2 * u, u, 3 * u); g.fillRect(7 * u, 3 * u, u, u);
+    g.fillRect(3 * u, 6 * u, 5 * u, u); g.fillRect(3 * u, 5 * u, u, 3 * u); g.fillRect(2 * u, 6 * u, u, u);
+  }
+  if (mark === 'plank' || mark === 'plank1') { // 木板：两道木纹 + 两颗钉子；快撑不住时多一道裂缝
+    g.fillStyle = shade(color, -.3); g.fillRect(u, 3 * u, 5 * u, u); g.fillRect(4 * u, 6 * u, 5 * u, u);
+    g.fillStyle = '#e6e2d6'; g.fillRect(2 * u, 2 * u, u, u); g.fillRect(7 * u, 7 * u, u, u);
+    if (mark === 'plank1') { g.fillStyle = '#2a1a10'; for (const [px, py] of [[5, 1], [5, 2], [4, 3], [5, 4], [6, 5], [5, 6], [5, 7], [4, 8]]) g.fillRect(px * u, py * u, u, u); }
+  }
+  if (mark && mark.startsWith('wave')) { // 浪花：一道白色的浪尖；下落时多一支方向箭头
+    g.fillStyle = '#fff'; for (const [px, py] of [[2, 3], [3, 2], [4, 2], [5, 3], [6, 4], [7, 3]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = shade(color, -.3); g.fillRect(2 * u, 7 * u, 6 * u, u);
+    if (mark === 'waveR') { g.fillStyle = '#fff'; g.fillRect(2 * u, 5 * u, 5 * u, u); g.fillRect(6 * u, 4 * u, u, 3 * u); g.fillRect(7 * u, 5 * u, u, u); }
+    if (mark === 'waveL') { g.fillStyle = '#fff'; g.fillRect(3 * u, 5 * u, 5 * u, u); g.fillRect(3 * u, 4 * u, u, 3 * u); g.fillRect(2 * u, 5 * u, u, u); }
+  }
+  if (mark === 'cloud') { // 寄存：一朵白色的小云
+    g.fillStyle = '#fff'; g.fillRect(4 * u, 3 * u, 2 * u, u); g.fillRect(3 * u, 4 * u, 5 * u, u); g.fillRect(2 * u, 5 * u, 6 * u, 2 * u);
+    g.fillStyle = shade(color, .2); g.fillRect(3 * u, 6 * u, 4 * u, u);
+  }
   if (leaf) { g.fillStyle = shade(color, .55); g.fillRect(3 * u, 3 * u, u, u); g.fillRect(6 * u, 3 * u, u, u); g.fillRect(4 * u, 4 * u, 2 * u, u); g.fillRect(4 * u, 5 * u, 2 * u, 2 * u); } // 植物：浅绿色的小芽
   if (ice) { g.fillStyle = '#fff'; for (let i = 0; i < 4; i++) g.fillRect((3 + i) * u, (6 - i) * u, u, u); g.fillRect(6 * u, 6 * u, u, u); } // 冰晶：一道斜向的白色反光
   return c;
@@ -624,6 +672,13 @@ const Sfx = {
   boom(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .4, 'triangle', .55, now, .3); Au.noise(.36, .3, now, 'lowpass', 1100); Au.noise(.12, .12, now, 'highpass', 5000); },
   squish(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(160, .12, 'sawtooth', .06, now, 1.8); Au.noise(.06, .06, now + .04, 'lowpass', 700); },
   flip(){ if (this.ok()) Au.tone(1100, .025, 'square', .04); },
+  hinge(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(340, .1, 'square', .06, now, .6); Au.tone(1200, .05, 'square', .05, now + .12); Au.noise(.05, .12, now + .12, 'bandpass', 2600); },
+  lift(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .3, 'sawtooth', .05, now, 1.6); Au.tone(midi(88), .12, 'triangle', .1, now + .3); Au.tone(midi(84), .2, 'triangle', .1, now + .42); },
+  xchg(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(500, .12, 'square', .05, now, 2.4); Au.tone(1200, .12, 'square', .04, now + .1, .4); },
+  wave(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.5, .25, now, 'bandpass', 700); Au.noise(.45, .18, now + .12, 'bandpass', 1500); Au.noise(.3, .14, now + .3, 'highpass', 4000); Au.tone(90, .4, 'sine', .3, now, .6); },
+  bridge(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [0, .16, .32, .48].forEach((d, i) => { Au.tone(i % 2 ? 1500 : 1300, .04, 'square', .06, now + d); Au.noise(.03, .1, now + d, 'bandpass', 3000); }); this.oink(); },
+  float(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [72, 76, 79, 84].forEach((m, i) => Au.tone(midi(m), .1, 'sine', .1, now + i * .05)); },
+  floatDrop(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .25, 'sine', .1, now, .3); Au.tone(110, .12, 'triangle', .35, now + .2, .5); },
   angel(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [76, 79, 84, 88, 91].forEach((m, i) => Au.tone(midi(m), .12, 'triangle', .08, now + i * .06)); },
   devil(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [55, 54, 53, 49].forEach((m, i) => Au.tone(midi(m), .16, 'sawtooth', .07, now + i * .1)); Au.tone(80, .4, 'triangle', .3, now + .3, .5); },
   poof(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.22, .18, now, 'lowpass', 1200); Au.tone(880, .12, 'triangle', .06, now + .02, 1.5); },
@@ -883,7 +938,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' || t === 'x' || t === 'n' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'x' || t === 'n' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -951,6 +1006,7 @@ function takeNext(){
   return t;
 }
 function spawn(){
+  if (dropFloater()) return; // 先让到时间的寄存块落下
   const t = takeNext();
   holdUsed = false;
   placePiece(t);
@@ -978,11 +1034,11 @@ function toggleLen(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c' || cur.t === 't' || cur.t === 'd') return false;
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c' || cur.t === 't' || cur.t === 'd' || cur.t === 'v' || cur.t === 'b') return false;
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
-  const kicks = cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' || cur.t === 'M' || cur.t === 'g' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
+  const kicks = cur.t === 'h' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [0, 2], [-2, 0], [2, 0]] : cur.t === 'Q' ? [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [0, 2]] : cur.t === 'N' || cur.t === 'C' || cur.t === 'Y' || cur.t === 'U' || cur.t === 'A' || cur.t === 'B' || cur.t === 'V' || cur.t === 'M' || cur.t === 'g' || cur.t === 'x' || cur.t === 'n' ? [[0, 0], [-1, 0], [1, 0], [0, 1]] : (cur.t === 'I' ? KI : KJ)['' + (from + sh) % 4 + (to + sh) % 4];
   for (const [kx, ky] of kicks) {
     if (!collide(cur.t, to, cur.x + kx, cur.y - ky)) {
       cur.x += kx; cur.y -= ky; cur.r = to;
@@ -1253,6 +1309,16 @@ function tickTimers(){
   const ticking = [], boom = [];
   for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) { const k = board[y][x]; if (k && k[0] === 't' && k.length === 2) (k === 't1' ? boom : ticking).push([x, y, k]); }
   for (const [x, y, k] of ticking) board[y][x] = 't' + (+k[1] - 1);
+  // 桥梁：b3 → b2 → b1，b1 再过一轮就不撑了：变回普通木板，底下空着的那几列连同上面压着的一起往下掉
+  const planks = [], expire = [];
+  for (let y = 0; y < TROWS; y++) for (let x = 0; x < COLS; x++) { const k = board[y][x]; if (k === 'b3' || k === 'b2') planks.push([x, y, k]); else if (k === 'b1') expire.push([x, y]); }
+  for (const [x, y, k] of planks) board[y][x] = 'b' + (+k[1] - 1);
+  if (expire.length) {
+    for (const [x, y] of expire) board[y][x] = 'b';
+    const fell = []; for (const [x, y] of expire.sort((a, b) => b[1] - a[1])) if (board[y][x] === 'b') fell.push(...dropStack(x, y));
+    if (fell.length) { fxSlideCells(fell, 220, '#d6a062'); Sfx.settle(); shake(3, 160); }
+  }
+  for (const f of floaters) f.turns--;
   levelRuleTurn();
   if (ticking.length && !boom.length) Sfx.tick();
   for (const [x, y] of boom) {
@@ -1381,7 +1447,113 @@ function placeTreasure(){
   board[y][x] = 'o'; treasurePlaced = true; fxCoinAppear(x, y); Sfx.coin();
 }
 let frozenRows = 0;
+// —— 六种新特殊块（2026-10-23）——
+// 铰链：横放时，如果左右某一半底下完全悬空（另一半有东西托着），这一半绕铰链转 90°，优先往下折；折完还悬空就整段往下沉
+function hingeFold(cs){
+  if (cs[0][1] !== cs[3][1]) return null; // 竖着放时上半截压在下半截上，不会悬空
+  const halves = [cs.slice(0, 2), cs.slice(2)], hang = h => h.every(([x, y]) => y + 1 < TROWS && !board[y + 1][x]);
+  const hs = halves.map(hang); if (hs[0] === hs[1]) return null;
+  const H = halves[hs[0] ? 0 : 1], keys = H.map(([x, y]) => board[y][x]), px = cs[2][0], py = cs[0][1] + 1; // 铰链销：两半交界处的下沿
+  for (const [x, y] of H) board[y][x] = null;
+  const turn = sgn => H.map(([x, y]) => { const dx = x + .5 - px, dy = y + .5 - py; return sgn > 0 ? [Math.floor(px - dy), Math.floor(py + dx)] : [Math.floor(px + dy), Math.floor(py - dx)]; });
+  const ok = c => c.every(([x, y]) => x >= 0 && x < COLS && y >= 0 && y < TROWS && !board[y][x]);
+  const cand = [[turn(1), 1], [turn(-1), -1]].filter(([c]) => ok(c)).sort((a, b) => (b[0][0][1] + b[0][1][1]) - (a[0][0][1] + a[0][1][1]));
+  if (!cand.length) { H.forEach(([x, y], i) => board[y][x] = keys[i]); return null; }
+  let [to, sgn] = cand[0];
+  const folded = to.map(c => c.slice());
+  while (to.every(([x, y]) => y + 1 < TROWS && (!board[y + 1][x] || to.some(([a, b]) => a === x && b === y + 1)))) to = to.map(([x, y]) => [x, y + 1]); // 折下去后底下还空着：整段继续往下沉
+  to.forEach(([x, y], i) => board[y][x] = keys[i]);
+  return { from: H, folded, to, keys, px, py, sgn };
+}
+// 电梯：左右相邻两列各看一眼，把那一列最上面一段连着的方块整体抬一格；能凑满行的一边优先，其次挑矮的那边
+function elevatorLift(cs){
+  const ex = cs[0][0], opts = [];
+  for (const side of [-1, 1]) {
+    const cx = ex + side; if (cx < 0 || cx >= COLS) continue;
+    let top = -1; for (let y = 0; y < TROWS; y++) if (board[y][cx]) { top = y; break; }
+    if (top < HID + 1) continue; // 这一列是空的，或者已经顶到看不见的地方，上面没空间
+    let end = top; while (end + 1 < TROWS && board[end + 1][cx]) end++;
+    let full = 0; for (let y = top - 1; y < end; y++) { const k = board[y + 1][cx]; if (board[y].every((c, x) => x === cx ? k : c)) full++; }
+    opts.push({ cx, top, end, full });
+  }
+  if (!opts.length) return null;
+  opts.sort((a, b) => b.full - a.full || b.top - a.top);
+  const { cx, top, end } = opts[0], moved = [];
+  for (let y = top; y <= end; y++) { board[y - 1][cx] = board[y][cx]; moved.push([cx, y, y - 1, board[y][cx]]); }
+  board[end][cx] = null;
+  return { cx, moved };
+}
+// 置换：在它占的每一行里挑一对「实心格 ↔ 空格」对调；被盖住的空洞优先换到露天的实心格那边，同样好时挑离得近的
+function exchangeCells(cs){
+  const res = [];
+  for (const y of [...new Set(cs.map(([, y]) => y))]) {
+    if (y < 0) continue;
+    const own = cs.filter(([, yy]) => yy === y).map(([x]) => x), covered = x => { for (let yy = 0; yy < y; yy++) if (board[yy][x]) return true; return false; };
+    let best = null;
+    for (let sx = 0; sx < COLS; sx++) {
+      if (!board[y][sx] || own.includes(sx)) continue;
+      for (let ex = 0; ex < COLS; ex++) {
+        if (board[y][ex]) continue;
+        const sc = (covered(ex) ? 100 : 0) + (covered(sx) ? 0 : 50) - Math.abs(sx - ex) - .01 * Math.min(...own.map(o => Math.abs(o - sx)));
+        if (!best || sc > best.sc) best = { sc, sx, ex };
+      }
+    }
+    if (!best) continue;
+    const k = board[y][best.sx]; board[y][best.ex] = k; board[y][best.sx] = null;
+    res.push({ y, sx: best.sx, ex: best.ex, k });
+  }
+  return res;
+}
+// 潮汐：整行循环平移一格；rowSlide 让这一行在棋盘上平滑地滑过去
+let rowSlide = null;
+function tideShift(y, dir){
+  const row = board[y];
+  board[y] = dir > 0 ? [row[COLS - 1], ...row.slice(0, COLS - 1)] : [...row.slice(1), row[0]];
+  rowSlide = { y, dir, t0: performance.now(), dur: 420 };
+}
+// 桥梁：悬空跨度超过 2 格的那一段当场塌掉；其余的撑着（b3 → b2 → b1，见 tickTimers）
+function bridgeBuild(cs){
+  const sup = ([x, y]) => y + 1 >= TROWS || board[y + 1][x];
+  const runs = []; let run = [];
+  for (const c of cs) { if (c[1] >= 0 && !sup(c)) run.push(c); else { if (run.length) runs.push(run); run = []; } }
+  if (run.length) runs.push(run);
+  const weak = runs.filter(r => r.length > 2).flat();
+  for (const [x, y] of weak) board[y][x] = 'b';
+  return weak.length ? settleCells(weak) : [];
+}
+// 一列从 (x, y) 往上连着的一段方块，整体往下落到有东西托住为止
+function dropStack(x, y){
+  let top = y; while (top - 1 >= 0 && board[top - 1][x]) top--;
+  let d = 0; while (y + d + 1 < TROWS && !board[y + d + 1][x]) d++;
+  const moved = []; if (!d) return moved;
+  for (let yy = y; yy >= top; yy--) { board[yy + d][x] = board[yy][x]; board[yy][x] = null; moved.push([x, yy, yy + d, board[yy + d][x]]); }
+  return moved;
+}
+// 寄存：落地后先悬浮（不在棋盘里，不挡路），turns 走完才落下
+let floaters = [];
+function floatPark(){
+  floaters.push({ r: cur.r, x: cur.x, y: cur.y, turns: 3 });
+  fxFloatPark(SHAPES.f[cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy])); Sfx.float();
+  cur = null; combo = 0;
+  tickTimers();
+  if (state !== 'play') return;
+  spawn();
+}
+// 有寄存块到时间了：把它当成当前方块，从悬浮的位置直接落下去锁定（和普通方块一样结算消行）；返回 true 表示已经接管
+function dropFloater(){
+  const i = floaters.findIndex(f => f.turns <= 0); if (i < 0) return false;
+  const f = floaters.splice(i, 1)[0];
+  let y = f.y; while (y > -2 && collide('f', f.r, f.x, y)) y--; // 期间有方块穿过它占的位置：往上挪到空出来的地方
+  if (collide('f', f.r, f.x, y)) { topOut(); return true; }
+  cur = { t: 'f', r: f.r, x: f.x, y, landing: true };
+  const y0 = cur.y; cur.y = ghostY();
+  fxFloatDrop(y0); Sfx.floatDrop();
+  lock();
+  return true;
+}
 function lock(){
+  if (cur.t === 'f' && !cur.landing) { floatPark(); return; }
+  const landing = !!cur.landing;
   if (cur.t === 'a') { arrowColumn(); return; }
   if (cur.t === 'c') { barberCut(); return; }
   if (cur.t === 'd') { gambleStart(); return; }
@@ -1391,12 +1563,17 @@ function lock(){
   if (cur.t === 'B') drillDown();
   if (cur.t === 'D') { const ty = dotTargetY(); if (ty !== cur.y) { fxDotSink(cur.x, cur.y, ty); cur.y = ty; } }
   let above = true;
-  const pieceT = cur.t;
+  const pieceT = cur.t, pieceR = cur.r;
   const cs = SHAPES[cur.t][cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]);
-  growPlants(cs); growParasites(cs); // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
+  if (!landing) { growPlants(cs); growParasites(cs); } // 先让已经在场的植物长这一回合（不会长到刚落下的这块身上），刚落下的植物从下一回合才开始长
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
+  if (pieceT === 'h') { const res = hingeFold(cs); if (res) { fxHinge(res); Sfx.hinge(); } }
+  if (pieceT === 'v') { const res = elevatorLift(cs); if (res) { fxLift(res); Sfx.lift(); } }
+  if (pieceT === 'x') { const res = exchangeCells(cs); if (res.length) { fxXchg(res); Sfx.xchg(); } }
+  if (pieceT === 'n' && cs[0][1] >= 0) { const dir = pieceR % 2 ? -1 : 1; tideShift(cs[0][1], dir); fxWave(cs[0][1], dir); Sfx.wave(); }
+  if (pieceT === 'b') { const fell = bridgeBuild(cs); fxBridge(cs); Sfx.bridge(); if (fell.length) { fxSettle(fell); Sfx.settle(); } }
   if (pieceT === 'V' && cs[0][1] >= 0) { const res = bladeCut(cs); fxBlade(cs, res); Sfx.slash(res.cut.length, 0); score += res.cut.length * 10 * level; } // 刀刃：切掉刀尖左右紧贴的方块
   if (LOOSE(pieceT)) { const fell = settleCells(cs); if (fell.length) { fxSettle(fell); Sfx.settle(); } } // 塌落：每一格各自掉到底
   if (pieceT === 'H') { // 补洞：塞子正下方这一列有空位，就脱离原形掉进最底下那个；原位置少一格
@@ -1417,7 +1594,9 @@ function lock(){
     // 削顶 / 换位：先看被消掉的行里有没有它们的格子，等正常消行、塌落都做完再动手
     const gone = full.concat(blast.rows), hasIn = test => gone.some(y => board[y].some(k => k && test(k)));
     const trimHit = hasIn(k => k === 'M'), swapHit = hasIn(k => k[0] === 'w'), coinHit = hasIn(k => k === 'o');
-    const steelKept = clearRows(full.concat(blast.rows).sort((a, b) => a - b));
+    const goneRows = full.concat(blast.rows).sort((a, b) => a - b);
+    const steelKept = clearRows(goneRows);
+    if (rowSlide) { if (goneRows.includes(rowSlide.y)) rowSlide = null; else rowSlide.y += goneRows.filter(y => y > rowSlide.y).length; }
     if (coinHit) { score += 1000 * level; fxCoin(); Sfx.coin(); } // 寻宝：金币格所在的行被消掉
     if (trimHit) { const res = trimTopRows(3); if (res) { fxTrimRows(res); Sfx.trim(); score += res.blocks * 10 * level; } }
     if (swapHit) { const res = swapTopBottom(); if (res) { fxSwapRows(res); Sfx.swap(); } }
@@ -1448,7 +1627,7 @@ function lock(){
     frozenRows = iced.length;
     if (pieceT === 'N' && !addGarbageRow()) { topOut(); return; } // 中条没消行：罚一行
   }
-  tickTimers(); // 这一轮结束：倒计时减 1，减完的爆炸；本级玩法的定时事件
+  if (!landing) tickTimers(); // 这一轮结束：倒计时减 1，减完的爆炸；本级玩法的定时事件（寄存块落下不算一轮）
   if (state !== 'play') return; // 涨潮把方块顶出了天花板
   if (above) { topOut(); return; }
   spawn();
@@ -1464,7 +1643,7 @@ function startGame(m){
   Au.init();
   mode = m || mode;
   rng = mode === 'daily' ? mulberry32(dailySeed(todayKey())) : Math.random;
-  board = newBoard(); queue = []; qOrig = []; qLevel = 0; hold = null; holdUsed = false; frozenRows = 0;
+  board = newBoard(); queue = []; qOrig = []; qLevel = 0; floaters = []; rowSlide = null; hold = null; holdUsed = false; frozenRows = 0;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
   clearInput(); P.length = 0; A.length = 0; scene = null; pausedFrom = null;
@@ -1612,7 +1791,11 @@ function render(){
     const auraPh = Math.floor(performance.now() / 240) % 2; // 棋盘上的牵连特殊格一明一暗
     for (let y = HID; y < TROWS; y++) {
       const row = board[y];
-      for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : auraPh && isAuraCore(row[x]) ? 'AS2' : row[x]], x, y);
+      const sl = rowSlide && rowSlide.y === y ? Math.min(1, (performance.now() - rowSlide.t0) / rowSlide.dur) : 1;
+      if (sl < 1) { // 潮汐：这一行正在整体滑过去（从一边出去的格子同时从另一边露出来）
+        const e = 1 - Math.pow(1 - sl, 3), off = -rowSlide.dir * (1 - e) * CD, sy = (y - HID) * CD;
+        for (let x = 0; x < COLS; x++) if (row[x]) for (const wrap of [0, rowSlide.dir * COLS]) ctx.drawImage(blockCache[row[x]], Math.round(x * CD + off + wrap), sy);
+      } else for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : auraPh && isAuraCore(row[x]) ? 'AS2' : row[x]], x, y);
       if (!dying && rowFull(y) && rowIced(y)) { // 冻住的满行：冰蓝罩层 + 上下霜边 + 一道来回扫的反光 + 闪烁的冰粒
         const sy = (y - HID) * CD, W = COLS * CD, u = Math.max(1, Math.round(CD / 10)), t = performance.now(), ph = Math.floor(t / 150);
         ctx.fillStyle = 'rgba(170,228,255,.42)'; ctx.fillRect(0, sy, W, CD);
@@ -1624,8 +1807,27 @@ function render(){
         ctx.fillStyle = '#fff'; for (let x = 0; x < COLS; x++) if ((x * 3 + y + ph) % 5 === 0) { ctx.fillRect(x * CD + 6 * u, sy + 3 * u, u, u); ctx.fillRect(x * CD + 3 * u, sy + 6 * u, u, u); }
       }
     }
+    if (floaters.length) { // 悬浮着的寄存块：半透明、上下轻轻晃；头顶的小点 = 还要等几块
+      const t = performance.now(), u = Math.max(1, Math.round(CD / 10));
+      for (const f of floaters) {
+        const bob = (Math.floor(t / 260) % 2) * u, cs = SHAPES.f[f.r];
+        ctx.globalAlpha = .55 + .15 * (Math.floor(t / 400) % 2);
+        for (const [cx, cy] of cs) if (f.y + cy >= HID) ctx.drawImage(blockCache['f'], (f.x + cx) * CD, (f.y + cy - HID) * CD - bob);
+        ctx.globalAlpha = 1;
+        const topY = Math.min(...cs.map(([, cy]) => f.y + cy)), lx = Math.min(...cs.filter(([, cy]) => f.y + cy === topY).map(([cx]) => f.x + cx));
+        if (topY >= HID) { ctx.fillStyle = '#fff'; for (let i = 0; i < Math.max(1, f.turns); i++) ctx.fillRect(lx * CD + (2 + i * 3) * u, (topY - HID) * CD - bob + u, 2 * u, 2 * u); }
+      }
+    }
     if (cur && (state === 'play' || state === 'countdown' || state === 'pause')) {
       const cs = SHAPES[cur.t][cur.r], gm = ghostMode();
+      if (cur.t === 'n' && state === 'play') { // 潮汐：落点那一行铺一层淡蓝，几道箭头朝要平移的方向流动
+        const gy = ghostY() + cs[0][1], dir = cur.r % 2 ? -1 : 1, u = Math.max(1, Math.round(CD / 10)), sy = (gy - HID) * CD, ph = Math.floor(performance.now() / 60);
+        if (gy >= HID) {
+          ctx.fillStyle = 'rgba(43,127,212,.16)'; ctx.fillRect(0, sy, COLS * CD, CD);
+          ctx.fillStyle = 'rgba(160,210,255,.55)';
+          for (let i = 0; i < 4; i++) { const ax = ((i * 2.5 * CD + dir * ph * u) % (COLS * CD) + COLS * CD) % (COLS * CD); for (let j = 0; j < 3; j++) { ctx.fillRect(ax - dir * j * u, sy + (3 + j) * u, u, u); ctx.fillRect(ax - dir * j * u, sy + (7 - j) * u, u, u); } }
+        }
+      }
       if (gm !== 'off') { const gy = cur.t === 'D' ? dotTargetY() : ghostY(); if (gy !== cur.y) for (const [cx, cy] of cs) blit(ghostCache[gm][cur.t], cur.x + cx, gy + cy); }
       // 落地后锁定前：方块轻微变暗闪一下提示
       const k = !canMove(0, 1) ? Math.floor(lockTimer / 60) % 2 : 0;
@@ -1636,7 +1838,12 @@ function render(){
       if (cur.t === 'a' && state === 'play') { ctx.fillStyle = `rgba(255,111,181,${.08 + .04 * (Math.floor(nowMs / 160) % 2)})`; ctx.fillRect(cur.x * CD, 0, CD, ROWS * CD); } // 箭头要铲的那一列
       if (cur.t === 'A' && state === 'play') drawAura(nowMs, cs);
       if (cur.t === 'V' && state === 'play') drawAura(nowMs, cs, ['#fff', '#d6ffc0', '#5cff7a', '#12a83c']); // 刀刃块：整把刀裹着绿火
-      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
+      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cur.t === 'n' ? (cur.r % 2 ? 'nL' : 'nR') + (blink ? '2' : '') : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
+      if (cur.t === 'h') { // 铰链销：两半交界处一颗银色的圆销
+        const [ax, ay] = cs[1], [bx, by] = cs[2], u = Math.max(1, Math.round(CD / 10));
+        const mx = (ax === bx ? (cur.x + ax) * CD + CD / 2 : (cur.x + bx) * CD), my = (ay === by ? (cur.y + ay - HID) * CD + CD / 2 : (cur.y + by - HID) * CD);
+        if (cur.y + Math.min(ay, by) >= HID) { ctx.fillStyle = '#3a2a20'; ctx.fillRect(mx - 2 * u, my - 2 * u, 4 * u, 4 * u); ctx.fillStyle = '#e6ebf3'; ctx.fillRect(mx - u, my - u, 2 * u, 2 * u); }
+      }
       ctx.globalAlpha = 1;
     }
   }
@@ -1960,6 +2167,110 @@ function fxSlideCells(moved, ms, dust){
   });
   for (const q of list) for (let i = 0; i < 3; i++) addP({ x: q.X + rand(0, c), y: q.Y1 + c - u, vx: rand(-90, 90), vy: rand(-120, -20), g: 600, max: rand(160, 300), s: u, c: i ? dust : '#fff', delay: ms });
   return list;
+}
+// 铰链：悬空的那一半绕铰链销转过去（先把它的新位置盖住，画一段转动的过程），销子迸火星
+function fxHinge(res){
+  const r = bRect(), c = CELL, u = px(c), PX = r.left + res.px * c, PY = r.top + (res.py - HID) * c;
+  const cover = res.to.filter(([, y]) => y >= HID).map(([x, y]) => [r.left + x * c, r.top + (y - HID) * c]);
+  const rel = res.from.map(([x, y]) => [x * c + r.left - PX, (y - HID) * c + r.top - PY]);
+  const sink = (res.to[0][1] - res.folded[0][1]) * c;
+  anim(300, (k, g) => {
+    for (const [X, Y] of cover) { g.fillStyle = '#070910'; g.fillRect(X, Y, c, c); }
+    const a = Math.min(1, k / .6), e = 1 - (1 - a) * (1 - a), dy = k > .6 ? sink * ((k - .6) / .4) ** 2 : 0;
+    g.save(); g.translate(PX, PY + dy); g.rotate(res.sgn * e * Math.PI / 2);
+    rel.forEach(([X, Y], i) => g.drawImage(blockCache[res.keys[i]], X, Y, c, c));
+    g.restore();
+  });
+  for (let i = 0; i < 10; i++) addP({ x: PX, y: PY, vx: rand(-160, 160), vy: rand(-220, -40), g: 700, max: rand(180, 320), s: u, c: i % 2 ? '#e6ebf3' : '#ffd23f', delay: 160 });
+  banner('#banner', [['FOLD!', 't-clear']], .45);
+}
+// 电梯：那一段往上升一格，底下喷一道金色的光，顶上 ▲ 一闪
+function fxLift(res){
+  const r = bRect(), c = CELL, u = px(c), X = r.left + res.cx * c;
+  const list = res.moved.filter(([, , y1]) => y1 >= HID).map(([x, y0, y1, k]) => ({ Y0: r.top + (y0 - HID) * c, Y1: r.top + (y1 - HID) * c, k }));
+  anim(260, (k, g) => {
+    const e = 1 - (1 - k) * (1 - k);
+    for (const q of list) { g.fillStyle = '#070910'; g.fillRect(X, q.Y0, c, c); g.fillRect(X, q.Y1, c, c); }
+    for (const q of list) g.drawImage(blockCache[q.k], X, Math.round(q.Y0 + (q.Y1 - q.Y0) * e), c, c);
+  });
+  if (!list.length) return;
+  const bot = Math.max(...list.map(q => q.Y0)) + c, top = Math.min(...list.map(q => q.Y1));
+  anim(380, (k, g) => { g.globalAlpha = .5 * (1 - k); g.fillStyle = '#ffd23f'; g.fillRect(X + c * .3, top, c * .4, bot - top); g.globalAlpha = 1; });
+  for (let i = 0; i < 10; i++) addP({ x: X + rand(0, c), y: bot - u, vx: rand(-40, 40), vy: rand(-320, -120), max: rand(220, 380), s: u, c: i % 2 ? '#ffd23f' : '#fff' });
+  banner('#banner', [['LIFT!', 't-clear']], .45);
+}
+// 置换：实心格沿一道弧线滑进空格，留下一串青色的轨迹
+function fxXchg(res){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const q of res) {
+    if (q.y < HID) continue;
+    const X0 = r.left + q.sx * c, X1 = r.left + q.ex * c, Y = r.top + (q.y - HID) * c;
+    anim(280, (k, g) => {
+      const e = k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k), X = X0 + (X1 - X0) * e, lift = Math.sin(k * Math.PI) * c * .6;
+      g.fillStyle = '#070910'; g.fillRect(X1, Y, c, c);
+      g.globalAlpha = .35; g.fillStyle = '#22c7c7'; g.fillRect(Math.min(X0, X), Y + c / 2 - u, Math.abs(X - X0) + c / 2, 2 * u); g.globalAlpha = 1;
+      g.drawImage(blockCache[q.k], X, Y - lift, c, c);
+    });
+    for (let i = 0; i < 8; i++) addP({ x: X1 + c / 2, y: Y + c / 2, vx: rand(-140, 140), vy: rand(-140, 60), max: rand(160, 300), s: u, c: i % 2 ? '#8ff0f0' : '#fff', delay: 280 });
+  }
+  banner('#banner', [['SWITCH!', 't-clear']], .45);
+}
+// 潮汐：一道浪头从一边卷到另一边——浪身由深到浅的蓝、浪尖一圈白沫，一路往前甩水花，整行跟着滑
+function fxWave(y, dir){
+  if (y < HID) return;
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c, Y = r.top + (y - HID) * c, L = r.left;
+  anim(650, (k, g) => {
+    const crest = dir > 0 ? -c + k * (W + 2 * c) : W + c - k * (W + 2 * c), amp = 1.7 * c * Math.sin(Math.min(1, k * 1.4) * Math.PI * .5) * (1 - Math.max(0, k - .7) / .3 * .6);
+    g.globalAlpha = .28 * (1 - k); g.fillStyle = '#6fb6ff'; g.fillRect(L, Y, W, c); g.globalAlpha = 1;
+    for (let xx = 0; xx < W; xx += u) {
+      const d = (xx - crest) * dir, h = d > 0 ? amp * Math.exp(-d * d / (c * c * .6)) : amp * Math.exp(-d * d / (c * c * 6)); // 浪的前沿陡、后面拖一条长长的浪身
+      if (h < u) continue;
+      const top = Y + c - Math.round(h / u) * u;
+      for (let yy = top; yy < Y + c; yy += u) { const f = (yy - top) / Math.max(u, h); g.fillStyle = f < .18 ? '#ffffff' : f < .4 ? '#9fd4ff' : f < .7 ? '#4f9ee8' : '#2b6fc0'; g.globalAlpha = .9 - f * .35; g.fillRect(L + xx, yy, u, u); }
+      if (Math.abs(d) < u * 1.5 && Math.random() < .5) addP({ x: L + xx, y: top, vx: dir * rand(80, 260), vy: rand(-320, -120), g: 900, max: rand(240, 420), s: u, c: Math.random() < .5 ? '#fff' : '#9fd4ff' });
+    }
+    g.globalAlpha = 1;
+  });
+  shake(4, 260);
+  banner('#banner', [['WAVE!', 't-tetris']], .5);
+}
+// 桥梁：两只戴黄色安全帽的小猪站在桥两头敲敲打打，然后各自往外跑走
+const HELMET = ['....yyyyy.....', '...yyyyyyy....', '..yyyyyyyyyyy.'];
+const HELMET_PAL = { y: '#ffd23f' };
+function fxBridge(cs){
+  const r = bRect(), c = CELL, s = Math.max(2, Math.round(c / 6)), pw = 14 * s, ph = 11 * s;
+  const y0 = Math.min(...cs.map(([, y]) => y)); if (y0 < HID) return;
+  const xL = Math.min(...cs.map(([x]) => x)), xR = Math.max(...cs.map(([x]) => x)) + 1, ground = r.top + (y0 - HID) * c - ph;
+  const standL = r.left + xL * c - pw * .35, standR = r.left + xR * c - pw * .65;
+  anim(1500, (k, g) => {
+    const t = k * 1500, work = t < 1000, out = work ? 0 : (t - 1000) / 500;
+    for (const [side, sx] of [[-1, standL], [1, standR]]) {
+      const x = sx + side * out * out * 4 * c, faceRight = work ? side < 0 : side > 0, legs = work ? 0 : Math.floor(t / 70) % 2, bob = work ? (Math.floor(t / 90 + (side > 0 ? 1 : 0)) % 2) * s : (legs ? -s : 0);
+      g.globalAlpha = 1 - Math.max(0, out - .6) / .4;
+      if (work) { // 小锤子一下一下敲在桥上
+        const up = Math.floor(t / 90 + (side > 0 ? 1 : 0)) % 2, hx = x + (faceRight ? pw - s : 0);
+        g.fillStyle = '#8a5a2a'; g.fillRect(Math.round(hx), Math.round(ground + (up ? 4 : 7) * s), s, 4 * s);
+        g.fillStyle = '#c9cbd2'; g.fillRect(Math.round(hx - s), Math.round(ground + (up ? 3 : 6) * s), 3 * s, 2 * s);
+        if (!up && Math.random() < .3) addP({ x: hx, y: ground + ph, vx: rand(-80, 80), vy: rand(-160, -60), g: 600, max: 200, s, c: '#ffd23f' });
+      }
+      drawSprite(g, PIG, x, ground + bob, s, !faceRight);
+      drawSprite(g, HELMET, x, ground + bob - 2 * s, s, !faceRight, HELMET_PAL);
+      drawSprite(g, PIG_LEGS[legs], x, ground + bob + 9 * s, s, !faceRight);
+    }
+    g.globalAlpha = 1;
+  });
+  banner('#banner', [['BRIDGE!', 't-clear'], [pixelTextImg('小猪施工队', COLS * CELL), 't-cn']], 1.1);
+}
+// 寄存：一圈粉色的光圈往外扩，冒几颗小泡泡往上飘
+function fxFloatPark(cs){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [x, y] of cs) if (y >= HID) for (let i = 0; i < 3; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: r.top + (y - HID + rand(0, 1)) * c, vx: rand(-30, 30), vy: rand(-120, -40), max: rand(300, 500), s: u, c: i % 2 ? '#ffd0e8' : '#fff' });
+  banner('#banner', [['FLOAT!', 't-clear']], .45);
+}
+function fxFloatDrop(y0){
+  const r = bRect(), c = CELL, u = px(c), cs = SHAPES.f[cur.r];
+  anim(160, (k, g) => { g.globalAlpha = .45 * (1 - k); g.fillStyle = '#ff9ccf'; for (const [cx, cy] of cs) { const a = Math.max(HID, y0 + cy), b = cur.y + cy; if (b > a) g.fillRect(r.left + (cur.x + cx) * c + c / 2 - u, r.top + (a - HID) * c, 2 * u, (b - a) * c); } g.globalAlpha = 1; });
+  for (const [cx, cy] of cs) if (cur.y + cy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (cur.x + cx + rand(0, 1)) * c, y: r.top + (cur.y + cy - HID + 1) * c, vx: rand(-90, 90), vy: rand(-140, -40), g: 600, max: rand(160, 280), s: u, c: i ? '#ffd0e8' : '#fff' });
 }
 function fxSettle(fell){ fxSlideCells(fell, 130, '#7fe0d2'); }
 function fxShakeCol(x, fromY, moved){
