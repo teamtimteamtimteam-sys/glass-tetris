@@ -319,7 +319,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   v:'#c9a227', v2:'#f0cf5a', vS:'#c9a227', vS2:'#f0cf5a',   // 电梯块：黄铜色电梯门，上面那格亮着 ▲
   x:'#2bd4c8', x2:'#9ff7ef', xS:'#16204a', xS2:'#24347a',  // 置换块：两头是带 ⇄ 箭头的青色臂，中间一格深蓝底上一个青白色的漩涡
   b:'#a8703a', bL:'#d6a062', b3:'#a8703a', b2:'#a8703a', b1:'#8a5a2a', // 桥梁块：木板；b3/b2/b1 = 还能撑几回合（b1 已经裂了）
-  n:'#2b7fd4', n2:'#6fb6ff', nR:'#2b7fd4', nR2:'#6fb6ff', nL:'#2b7fd4', nL2:'#6fb6ff', // 潮汐块：海蓝色浪花；下落时显示往右 / 往左的箭头
+  n:'#1f5fb8', n2:'#4f8fe8', nF:'#7fc4ff', nF2:'#dff2ff',  // 潮汐块：一道卷起来的浪——底下深海蓝（n），上面一排是带白沫的浪尖（nF）
   f:'#ff9ccf', f2:'#ffd0e8',                                // 寄存块：粉色的气球云
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
@@ -388,11 +388,11 @@ const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i) => t === 'x' ? (i === 0 ? 'xS' : 'x') : t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i) => t === 'n' ? (i < 3 ? 'nF' : 'n') : t === '~' ? 'f' : t === 'x' ? (i === 0 ? 'xS' : 'x') : t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 'x' ? (i === 0 ? 'xS' : 'x') + (blink ? '2' : '') : t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 'n' ? (i < 3 ? 'nF' : 'n') + (blink ? '2' : '') : t === 'x' ? (i === 0 ? 'xS' : 'x') + (blink ? '2' : '') : t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? (k[1] === 'S' ? 'vortex' : 'xchg') : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'R' ? 'waveR' : k[1] === 'L' ? 'waveL' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? (k[1] === 'S' ? 'vortex' : 'xchg') : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'F' ? 'foam' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
@@ -406,8 +406,9 @@ SHAPES.v = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
 SHAPES.x = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 1], [0, 1], [2, 1]] : [[1, 1], [1, 0], [1, 2]]);
 // b 桥梁块：横着 4 格的木板，不能转。悬空的跨度最多 2 格（再宽的那段当场塌下去）；撑两回合后，底下没东西托着的部分连同上面压着的一起往下掉
 SHAPES.b = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0], [3, 0]]);
-// n 潮汐块：横着两格；旋转键切换方向（往右 / 往左）。落地后它所在的整行循环平移一格，从一边出去的格子从另一边进来
-SHAPES.n = [0, 1, 2, 3].map(() => [[0, 0], [1, 0]]);
+// n 潮汐块：五格的「卷浪」——上面一排 3 格浪尖探向前方，底下 2 格浪身；旋转键左右翻转（浪往哪边卷，就往哪边推）
+//   落地后整个棋盘上的全部方块一起往那个方向循环平移一格（每一行从一边出去的格子从另一边进来）。前 3 格是浪尖
+SHAPES.n = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 0], [2, 0], [3, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1]]);
 // f 寄存块：T 形。落地后先悬浮在原地（不挡路），接下来两块方块可以从它身上穿过去；之后它才真正落下
 SHAPES.f = SHAPES.T;
 const isSpecial = t => t === 'h' || t === 'v' || t === 'x' || t === 'b' || t === 'n' || t === 'f' || t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd';
@@ -581,11 +582,12 @@ function makeBlock(color, D, mark){
     g.fillStyle = '#e6e2d6'; g.fillRect(2 * u, 2 * u, u, u); g.fillRect(7 * u, 7 * u, u, u);
     if (mark === 'plank1') { g.fillStyle = '#2a1a10'; for (const [px, py] of [[5, 1], [5, 2], [4, 3], [5, 4], [6, 5], [5, 6], [5, 7], [4, 8]]) g.fillRect(px * u, py * u, u, u); }
   }
-  if (mark && mark.startsWith('wave')) { // 浪花：一道白色的浪尖；下落时多一支方向箭头
-    g.fillStyle = '#fff'; for (const [px, py] of [[2, 3], [3, 2], [4, 2], [5, 3], [6, 4], [7, 3]]) g.fillRect(px * u, py * u, u, u);
-    g.fillStyle = shade(color, -.3); g.fillRect(2 * u, 7 * u, 6 * u, u);
-    if (mark === 'waveR') { g.fillStyle = '#fff'; g.fillRect(2 * u, 5 * u, 5 * u, u); g.fillRect(6 * u, 4 * u, u, 3 * u); g.fillRect(7 * u, 5 * u, u, u); }
-    if (mark === 'waveL') { g.fillStyle = '#fff'; g.fillRect(3 * u, 5 * u, 5 * u, u); g.fillRect(3 * u, 4 * u, u, 3 * u); g.fillRect(2 * u, 5 * u, u, u); }
+  if (mark === 'wave') { // 浪身：两道起伏的浅色水纹
+    g.fillStyle = shade(color, .45); for (const [px, py] of [[2, 3], [3, 2], [4, 2], [5, 3], [6, 3], [7, 2], [2, 6], [3, 7], [4, 7], [5, 6], [6, 6], [7, 7]]) g.fillRect(px * u, py * u, u, u);
+  }
+  if (mark === 'foam') { // 浪尖：上半截一团白沫，往下滴几颗水珠
+    g.fillStyle = '#fff'; g.fillRect(u, u, D - 2 * u, 3 * u); g.fillRect(2 * u, 4 * u, 2 * u, u); g.fillRect(5 * u, 4 * u, 3 * u, u); g.fillRect(3 * u, 6 * u, u, u); g.fillRect(6 * u, 7 * u, u, u);
+    g.fillStyle = '#dff2ff'; g.fillRect(2 * u, 2 * u, u, u); g.fillRect(6 * u, 2 * u, u, u);
   }
   if (mark === 'vortex') { // 漩涡：从外圈往里卷的螺旋，外圈青色、里圈白色
     g.fillStyle = '#2bd4c8'; for (const [px, py] of [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6], [7, 7], [6, 7], [5, 7], [4, 7], [3, 7], [2, 7], [2, 6], [2, 5], [2, 4]]) g.fillRect(px * u, py * u, u, u);
@@ -682,7 +684,7 @@ const Sfx = {
   hinge(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(340, .1, 'square', .06, now, .6); Au.tone(1200, .05, 'square', .05, now + .12); Au.noise(.05, .12, now + .12, 'bandpass', 2600); },
   lift(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(120, .3, 'sawtooth', .05, now, 1.6); Au.tone(midi(88), .12, 'triangle', .1, now + .3); Au.tone(midi(84), .2, 'triangle', .1, now + .42); },
   xchg(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(500, .12, 'square', .05, now, 2.4); Au.tone(1200, .12, 'square', .04, now + .1, .4); },
-  wave(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.noise(.5, .25, now, 'bandpass', 700); Au.noise(.45, .18, now + .12, 'bandpass', 1500); Au.noise(.3, .14, now + .3, 'highpass', 4000); Au.tone(90, .4, 'sine', .3, now, .6); },
+  wave(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(45, .9, 'sawtooth', .18, now, .7); Au.noise(.5, .35, now + .25, 'lowpass', 900); Au.noise(.5, .3, now + .45, 'bandpass', 2200); Au.noise(.5, .25, now, 'bandpass', 700); Au.noise(.45, .18, now + .12, 'bandpass', 1500); Au.noise(.3, .14, now + .3, 'highpass', 4000); Au.tone(90, .4, 'sine', .3, now, .6); },
   bridge(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [0, .16, .32, .48].forEach((d, i) => { Au.tone(i % 2 ? 1500 : 1300, .04, 'square', .06, now + d); Au.noise(.03, .1, now + d, 'bandpass', 3000); }); this.oink(); },
   float(){ if (!this.ok()) return; const now = Au.ctx.currentTime; [72, 76, 79, 84].forEach((m, i) => Au.tone(midi(m), .1, 'sine', .1, now + i * .05)); },
   floatDrop(){ if (!this.ok()) return; const now = Au.ctx.currentTime; Au.tone(900, .25, 'sine', .1, now, .3); Au.tone(110, .12, 'triangle', .35, now + .2, .5); },
@@ -945,7 +947,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' || t === 'n' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'n' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -1512,12 +1514,12 @@ function exchangeCells(cs, bd = board){
   }
   return res;
 }
-// 潮汐：整行循环平移一格；rowSlide 让这一行在棋盘上平滑地滑过去
-let rowSlide = null;
-function tideShift(y, dir){
-  const row = board[y];
-  board[y] = dir > 0 ? [row[COLS - 1], ...row.slice(0, COLS - 1)] : [...row.slice(1), row[0]];
-  rowSlide = { y, dir, t0: performance.now(), dur: 420 };
+// 潮汐：整个棋盘每一行都循环平移一格；boardSlide 让整盘方块跟着浪头平滑地滑过去
+let boardSlide = null;
+const TIDE_MS = 900;
+function tideShift(dir){
+  for (let y = 0; y < TROWS; y++) { const row = board[y]; board[y] = dir > 0 ? [row[COLS - 1], ...row.slice(0, COLS - 1)] : [...row.slice(1), row[0]]; }
+  boardSlide = { dir, t0: performance.now() + TIDE_MS * .15, dur: TIDE_MS * .6 };
 }
 // 桥梁：悬空跨度超过 2 格的那一段当场塌掉；其余的撑着（b3 → b2 → b1，见 tickTimers）
 function bridgeBuild(cs){
@@ -1551,9 +1553,12 @@ function floatPark(){
 function dropFloater(){
   const i = floaters.findIndex(f => f.turns <= 0); if (i < 0) return false;
   const f = floaters.splice(i, 1)[0];
-  let y = f.y; while (y > -2 && collide('f', f.r, f.x, y)) y--; // 期间有方块穿过它占的位置：往上挪到空出来的地方
-  if (collide('f', f.r, f.x, y)) { topOut(); return true; }
-  cur = { t: 'f', r: f.r, x: f.x, y, landing: true };
+  // 悬浮期间被别的方块占掉的那几格直接消失，只有没被占的部分变成实体，再一起落下去
+  const keep = SHAPES.f[f.r].filter(([cx, cy]) => { const x = f.x + cx, y = f.y + cy; return y < 0 || !board[y][x]; }), lost = SHAPES.f[f.r].filter(c => !keep.includes(c));
+  fxFloatLost(lost.map(([cx, cy]) => [f.x + cx, f.y + cy]));
+  if (!keep.length) return dropFloater(); // 全被占了：整块散掉，看看还有没有别的到时间的
+  SHAPES['~'] = [0, 1, 2, 3].map(() => keep); // 剩下的几格临时当成一种方块
+  cur = { t: '~', r: 0, x: f.x, y: f.y, landing: true };
   const y0 = cur.y; cur.y = ghostY();
   fxFloatDrop(y0); Sfx.floatDrop();
   lock();
@@ -1580,7 +1585,7 @@ function lock(){
   if (pieceT === 'h') { const res = hingeFold(cs); if (res) { fxHinge(res); Sfx.hinge(); } }
   if (pieceT === 'v') { const res = elevatorLift(cs); if (res) { fxLift(res); Sfx.lift(); } }
   if (pieceT === 'x') { const res = exchangeCells(cs); fxVortex(cs[0]); if (res.length) { fxXchg(res); Sfx.xchg(); score += res.length * 20 * level; } }
-  if (pieceT === 'n' && cs[0][1] >= 0) { const dir = pieceR % 2 ? -1 : 1; tideShift(cs[0][1], dir); fxWave(cs[0][1], dir); Sfx.wave(); }
+  if (pieceT === 'n') { const dir = pieceR % 2 ? -1 : 1; tideShift(dir); fxTsunami(dir); Sfx.wave(); }
   if (pieceT === 'b') { const fell = bridgeBuild(cs); fxBridge(cs); Sfx.bridge(); if (fell.length) { fxSettle(fell); Sfx.settle(); } }
   if (pieceT === 'V' && cs[0][1] >= 0) { const res = bladeCut(cs); fxBlade(cs, res); Sfx.slash(res.cut.length, 0); score += res.cut.length * 10 * level; } // 刀刃：切掉刀尖左右紧贴的方块
   if (LOOSE(pieceT)) { const fell = settleCells(cs); if (fell.length) { fxSettle(fell); Sfx.settle(); } } // 塌落：每一格各自掉到底
@@ -1604,7 +1609,6 @@ function lock(){
     const trimHit = hasIn(k => k === 'M'), swapHit = hasIn(k => k[0] === 'w'), coinHit = hasIn(k => k === 'o');
     const goneRows = full.concat(blast.rows).sort((a, b) => a - b);
     const steelKept = clearRows(goneRows);
-    if (rowSlide) { if (goneRows.includes(rowSlide.y)) rowSlide = null; else rowSlide.y += goneRows.filter(y => y > rowSlide.y).length; }
     if (coinHit) { score += 1000 * level; fxCoin(); Sfx.coin(); } // 寻宝：金币格所在的行被消掉
     if (trimHit) { const res = trimTopRows(3); if (res) { fxTrimRows(res); Sfx.trim(); score += res.blocks * 10 * level; } }
     if (swapHit) { const res = swapTopBottom(); if (res) { fxSwapRows(res); Sfx.swap(); } }
@@ -1651,7 +1655,7 @@ function startGame(m){
   Au.init();
   mode = m || mode;
   rng = mode === 'daily' ? mulberry32(dailySeed(todayKey())) : Math.random;
-  board = newBoard(); queue = []; qOrig = []; qLevel = 0; floaters = []; rowSlide = null; hold = null; holdUsed = false; frozenRows = 0;
+  board = newBoard(); queue = []; qOrig = []; qLevel = 0; floaters = []; boardSlide = null; hold = null; holdUsed = false; frozenRows = 0;
   score = 0; lines = 0; combo = 0; b2b = 0; maxCombo = 0; tetrises = 0; pcs = 0; playTime = 0;
   level = mode === 'survival' ? MAX_LEVEL : 1;
   clearInput(); P.length = 0; A.length = 0; scene = null; pausedFrom = null;
@@ -1799,10 +1803,10 @@ function render(){
     const auraPh = Math.floor(performance.now() / 240) % 2; // 棋盘上的牵连特殊格一明一暗
     for (let y = HID; y < TROWS; y++) {
       const row = board[y];
-      const sl = rowSlide && rowSlide.y === y ? Math.min(1, (performance.now() - rowSlide.t0) / rowSlide.dur) : 1;
-      if (sl < 1) { // 潮汐：这一行正在整体滑过去（从一边出去的格子同时从另一边露出来）
-        const e = 1 - Math.pow(1 - sl, 3), off = -rowSlide.dir * (1 - e) * CD, sy = (y - HID) * CD;
-        for (let x = 0; x < COLS; x++) if (row[x]) for (const wrap of [0, rowSlide.dir * COLS]) ctx.drawImage(blockCache[row[x]], Math.round(x * CD + off + wrap), sy);
+      const sl = boardSlide ? Math.max(0, Math.min(1, (performance.now() - boardSlide.t0) / boardSlide.dur)) : 1;
+      if (sl < 1) { // 潮汐：整盘方块正在滑过去（从一边出去的格子同时从另一边露出来）
+        const e = sl < .5 ? 4 * sl * sl * sl : 1 - Math.pow(-2 * sl + 2, 3) / 2, off = -boardSlide.dir * (1 - e) * CD, sy = (y - HID) * CD;
+        for (let x = 0; x < COLS; x++) if (row[x]) for (const wrap of [0, boardSlide.dir * COLS]) ctx.drawImage(blockCache[row[x]], Math.round(x * CD + off + wrap), sy);
       } else for (let x = 0; x < COLS; x++) if (row[x]) blit(blockCache[y >= greyFrom ? 'G' : auraPh && isAuraCore(row[x]) ? 'AS2' : row[x]], x, y);
       if (!dying && rowFull(y) && rowIced(y)) { // 冻住的满行：冰蓝罩层 + 上下霜边 + 一道来回扫的反光 + 闪烁的冰粒
         const sy = (y - HID) * CD, W = COLS * CD, u = Math.max(1, Math.round(CD / 10)), t = performance.now(), ph = Math.floor(t / 150);
@@ -1840,12 +1844,13 @@ function render(){
           ctx.strokeStyle = 'rgba(159,247,239,.5)'; ctx.lineWidth = u; ctx.strokeRect(q.sx * CD + u / 2, Y + u / 2, CD - u, CD - u);
         }
       }
-      if (cur.t === 'n' && state === 'play') { // 潮汐：落点那一行铺一层淡蓝，几道箭头朝要平移的方向流动
-        const gy = ghostY() + cs[0][1], dir = cur.r % 2 ? -1 : 1, u = Math.max(1, Math.round(CD / 10)), sy = (gy - HID) * CD, ph = Math.floor(performance.now() / 60);
-        if (gy >= HID) {
-          ctx.fillStyle = 'rgba(43,127,212,.16)'; ctx.fillRect(0, sy, COLS * CD, CD);
-          ctx.fillStyle = 'rgba(160,210,255,.55)';
-          for (let i = 0; i < 4; i++) { const ax = ((i * 2.5 * CD + dir * ph * u) % (COLS * CD) + COLS * CD) % (COLS * CD); for (let j = 0; j < 3; j++) { ctx.fillRect(ax - dir * j * u, sy + (3 + j) * u, u, u); ctx.fillRect(ax - dir * j * u, sy + (7 - j) * u, u, u); } }
+      if (cur.t === 'n' && state === 'play') { // 潮汐：整个棋盘泛一层淡蓝，有方块的每一行都有一道箭头朝要推的方向流动
+        const dir = cur.r % 2 ? -1 : 1, u = Math.max(1, Math.round(CD / 10)), ph = Math.floor(performance.now() / 50), W = COLS * CD;
+        ctx.fillStyle = 'rgba(43,127,212,.07)'; ctx.fillRect(0, 0, W, ROWS * CD);
+        ctx.fillStyle = 'rgba(160,210,255,.35)';
+        for (let y = HID; y < TROWS; y++) if (board[y].some(Boolean)) {
+          const sy = (y - HID) * CD, ax = (((y * 37) % 10 * CD + dir * ph * u) % W + W) % W;
+          for (let j = 0; j < 3; j++) { ctx.fillRect(ax + dir * j * u, sy + (3 + j) * u, u, u); ctx.fillRect(ax + dir * j * u, sy + (7 - j) * u, u, u); }
         }
       }
       if (gm !== 'off') { const gy = cur.t === 'D' ? dotTargetY() : ghostY(); if (gy !== cur.y) for (const [cx, cy] of cs) blit(ghostCache[gm][cur.t], cur.x + cx, gy + cy); }
@@ -1858,7 +1863,7 @@ function render(){
       if (cur.t === 'a' && state === 'play') { ctx.fillStyle = `rgba(255,111,181,${.08 + .04 * (Math.floor(nowMs / 160) % 2)})`; ctx.fillRect(cur.x * CD, 0, CD, ROWS * CD); } // 箭头要铲的那一列
       if (cur.t === 'A' && state === 'play') drawAura(nowMs, cs);
       if (cur.t === 'V' && state === 'play') drawAura(nowMs, cs, ['#fff', '#d6ffc0', '#5cff7a', '#12a83c']); // 刀刃块：整把刀裹着绿火
-      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : cur.t === 'n' ? (cur.r % 2 ? 'nL' : 'nR') + (blink ? '2' : '') : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
+      cs.forEach(([cx, cy], i) => blit(blockCache[cur.t === 'F' ? fireSkin : fallSkin(cur.t, i, blink)], cur.x + cx, cur.y + cy));
       if (cur.t === 'h') { // 铰链销：两半交界处一颗金色的销子
         const [ax, ay] = cs[1], [bx, by] = cs[2], u = Math.max(1, Math.round(CD / 10));
         const mx = (ax === bx ? (cur.x + ax) * CD + CD / 2 : (cur.x + bx) * CD), my = (ay === by ? (cur.y + ay - HID) * CD + CD / 2 : (cur.y + by - HID) * CD);
@@ -2250,23 +2255,36 @@ function fxVortex([x, y]){
   for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; addP({ x: X, y: Y, vx: Math.cos(a) * 220 - Math.sin(a) * 120, vy: Math.sin(a) * 220 + Math.cos(a) * 120, max: rand(240, 380), s: u, c: i % 2 ? '#2bd4c8' : '#fff' }); }
 }
 // 潮汐：一道浪头从一边卷到另一边——浪身由深到浅的蓝、浪尖一圈白沫，一路往前甩水花，整行跟着滑
-function fxWave(y, dir){
-  if (y < HID) return;
-  const r = bRect(), c = CELL, u = px(c), W = COLS * c, Y = r.top + (y - HID) * c, L = r.left;
-  anim(650, (k, g) => {
-    const crest = dir > 0 ? -c + k * (W + 2 * c) : W + c - k * (W + 2 * c), amp = 1.7 * c * Math.sin(Math.min(1, k * 1.4) * Math.PI * .5) * (1 - Math.max(0, k - .7) / .3 * .6);
-    g.globalAlpha = .28 * (1 - k); g.fillStyle = '#6fb6ff'; g.fillRect(L, Y, W, c); g.globalAlpha = 1;
-    for (let xx = 0; xx < W; xx += u) {
-      const d = (xx - crest) * dir, h = d > 0 ? amp * Math.exp(-d * d / (c * c * .6)) : amp * Math.exp(-d * d / (c * c * 6)); // 浪的前沿陡、后面拖一条长长的浪身
+function fxTsunami(dir){
+  const r = bRect(), c = CELL, u = px(c), W = COLS * c, H = ROWS * c, L = r.left, T = r.top, B = T + H, Hmax = H * .78;
+  anim(TIDE_MS, (k, g) => {
+    const crest = dir > 0 ? -2 * c + k * (W + 4 * c) : W + 2 * c - k * (W + 4 * c);
+    const amp = Hmax * Math.min(1, k * 3) * (1 - Math.max(0, k - .75) / .25 * .7), level = Hmax * .22 * Math.min(1, k * 3) * (1 - k); // 浪头高度、浪后留下的水位
+    g.save(); g.beginPath(); g.rect(L, T, W, H); g.clip(); // 浪只画在棋盘里面（水花粒子可以飞出去）
+    if (k < .25) { g.globalAlpha = .35 * (1 - k / .25); g.fillStyle = '#9fd4ff'; g.fillRect(L, T, W, H); } // 开头整盘一闪蓝光
+    for (let xx = -2 * c; xx < W + 2 * c; xx += u) {
+      const d = (xx - crest) * dir;
+      let h = d > 0 ? amp * Math.exp(-d * d / (c * c * .35)) : Math.max(amp * Math.exp(-d * d / (c * c * 14)), level);
       if (h < u) continue;
-      const top = Y + c - Math.round(h / u) * u;
-      for (let yy = top; yy < Y + c; yy += u) { const f = (yy - top) / Math.max(u, h); g.fillStyle = f < .18 ? '#ffffff' : f < .4 ? '#9fd4ff' : f < .7 ? '#4f9ee8' : '#2b6fc0'; g.globalAlpha = .9 - f * .35; g.fillRect(L + xx, yy, u, u); }
-      if (Math.abs(d) < u * 1.5 && Math.random() < .5) addP({ x: L + xx, y: top, vx: dir * rand(80, 260), vy: rand(-320, -120), g: 900, max: rand(240, 420), s: u, c: Math.random() < .5 ? '#fff' : '#9fd4ff' });
+      h = Math.round(h / u) * u;
+      const X = L + xx, top = B - h;
+      for (let yy = top; yy < B; yy += u) { // 浪身：顶上白沫 → 浅蓝 → 深蓝，越往下越透
+        const f = (yy - top) / h;
+        g.fillStyle = f < .05 ? '#ffffff' : f < .14 ? '#dff2ff' : f < .32 ? '#7fc4ff' : f < .6 ? '#3f8fe0' : '#1f5fb8';
+        g.globalAlpha = .92 - f * .45 + ((Math.floor(xx / u) * 7 + Math.floor(yy / u) * 3 + Math.floor(k * 20)) % 9 === 0 ? .08 : 0);
+        g.fillRect(X, yy, u, u);
+      }
+      if (d > -c * .6 && d < c * 1.6 && h > c) { // 卷过来的浪舌：浪顶往前探出一截，下面是空的
+        const lip = Math.round((1.6 * c - Math.abs(d - .5 * c)) / u) * u;
+        g.globalAlpha = .95; g.fillStyle = '#ffffff'; g.fillRect(X + dir * lip * .6, top - u, u, u * 2);
+      }
+      if (Math.abs(d) < u * 2 && xx >= 0 && xx < W && Math.random() < .7) addP({ x: X, y: top + rand(0, c), vx: dir * rand(120, 420), vy: rand(-520, -160), g: 1100, max: rand(300, 600), s: u * (Math.random() < .25 ? 2 : 1), c: Math.random() < .55 ? '#fff' : '#9fd4ff' });
     }
-    g.globalAlpha = 1;
+    g.restore(); g.globalAlpha = 1;
   });
-  shake(4, 260);
-  banner('#banner', [['WAVE!', 't-tetris']], .5);
+  for (let i = 0; i < 40; i++) addP({ x: L + rand(0, W), y: B - rand(0, c), vx: dir * rand(60, 300), vy: rand(-700, -250), g: 1200, max: rand(400, 800), s: u * (i % 3 ? 1 : 2), c: i % 2 ? '#fff' : '#7fc4ff', delay: TIDE_MS * .45 }); // 浪拍过去以后炸起一片水花
+  setTimeout(() => shake(12, 520), TIDE_MS * .2);
+  banner('#banner', [['TSUNAMI!', 't-tetris'], [dir > 0 ? '>>>>' : '<<<<', 't-combo']], .9);
 }
 // 桥梁：两只戴黄色安全帽的小猪站在桥两头敲敲打打，然后各自往外跑走
 const HELMET = ['....yyyyy.....', '...yyyyyyy....', '..yyyyyyyyyyy.'];
@@ -2301,8 +2319,12 @@ function fxFloatPark(cs){
   for (const [x, y] of cs) if (y >= HID) for (let i = 0; i < 3; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: r.top + (y - HID + rand(0, 1)) * c, vx: rand(-30, 30), vy: rand(-120, -40), max: rand(300, 500), s: u, c: i % 2 ? '#ffd0e8' : '#fff' });
   banner('#banner', [['FLOAT!', 't-clear']], .45);
 }
+function fxFloatLost(cells){ // 被占掉的那几格：化成一团粉色的泡泡散掉
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [x, y] of cells) if (y >= HID) for (let i = 0; i < 8; i++) addP({ x: r.left + (x + .5) * c, y: r.top + (y - HID + .5) * c, vx: rand(-150, 150), vy: rand(-180, 40), max: rand(220, 380), s: u, c: i % 2 ? '#ff9ccf' : '#fff' });
+}
 function fxFloatDrop(y0){
-  const r = bRect(), c = CELL, u = px(c), cs = SHAPES.f[cur.r];
+  const r = bRect(), c = CELL, u = px(c), cs = SHAPES[cur.t][cur.r];
   anim(160, (k, g) => { g.globalAlpha = .45 * (1 - k); g.fillStyle = '#ff9ccf'; for (const [cx, cy] of cs) { const a = Math.max(HID, y0 + cy), b = cur.y + cy; if (b > a) g.fillRect(r.left + (cur.x + cx) * c + c / 2 - u, r.top + (a - HID) * c, 2 * u, (b - a) * c); } g.globalAlpha = 1; });
   for (const [cx, cy] of cs) if (cur.y + cy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (cur.x + cx + rand(0, 1)) * c, y: r.top + (cur.y + cy - HID + 1) * c, vx: rand(-90, 90), vy: rand(-140, -40), g: 600, max: rand(160, 280), s: u, c: i ? '#ffd0e8' : '#fff' });
 }
