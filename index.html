@@ -317,7 +317,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   Y:'#6fbf3a', Y1:'#8edb50', Y2:'#8edb50', Y3:'#8edb50', // Y = 植物块；Y3/Y2/Y1 = 还能再长 3/2/1 回合（颜色更亮），长完变回 Y
   h:'#d7dde8', h2:'#ffffff', hB:'#8e9ab0', hB2:'#c3cbd9',   // 铰链块：两节镀铬的铰链板（一亮一暗两半），中间一颗十字螺丝，连接处一颗铰链销
   v:'#c9a227', v2:'#f0cf5a', vS:'#c9a227', vS2:'#f0cf5a',   // 电梯块：黄铜色电梯门，上面那格亮着 ▲
-  x:'#22c7c7', x2:'#8ff0f0',                                // 置换块：青色，⇄ 箭头
+  x:'#2bd4c8', x2:'#9ff7ef', xS:'#16204a', xS2:'#24347a',  // 置换块：两头是带 ⇄ 箭头的青色臂，中间一格深蓝底上一个青白色的漩涡
   b:'#a8703a', bL:'#d6a062', b3:'#a8703a', b2:'#a8703a', b1:'#8a5a2a', // 桥梁块：木板；b3/b2/b1 = 还能撑几回合（b1 已经裂了）
   n:'#2b7fd4', n2:'#6fb6ff', nR:'#2b7fd4', nR2:'#6fb6ff', nL:'#2b7fd4', nL2:'#6fb6ff', // 潮汐块：海蓝色浪花；下落时显示往右 / 往左的箭头
   f:'#ff9ccf', f2:'#ffd0e8',                                // 寄存块：粉色的气球云
@@ -388,11 +388,11 @@ const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i) => t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i) => t === 'x' ? (i === 0 ? 'xS' : 'x') : t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 'x' ? (i === 0 ? 'xS' : 'x') + (blink ? '2' : '') : t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
-const markOf = k => k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? 'xchg' : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'R' ? 'waveR' : k[1] === 'L' ? 'waveL' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
+const markOf = k => k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? (k[1] === 'S' ? 'vortex' : 'xchg') : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'R' ? 'waveR' : k[1] === 'L' ? 'waveL' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
 SHAPES.Y = [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[0, 1], [1, 1]], [[0, 0], [0, 1]]];
 // N 三格中条：能横竖转；落地时如果一行都没消掉，就在当前最高处上面加一行有随机缺口的方块
@@ -401,8 +401,9 @@ SHAPES.N = [[[0, 1], [1, 1], [2, 1]], [[1, 0], [1, 1], [1, 2]], [[0, 1], [1, 1],
 SHAPES.h = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[0, 1], [1, 1], [2, 1], [3, 1]] : [[2, 0], [2, 1], [2, 2], [2, 3]]);
 // v 电梯块：竖着两格，不能转。落地后把左边或右边相邻一列最上面那一段连着的方块整体抬升一格（上面要有空位；两边都行时挑能凑满行的）
 SHAPES.v = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
-// x 置换块：两格，能横竖转。落地后在它所在的每一行里，把一个实心格和最近的空格对调（优先把被盖住的空洞换到露天的位置）
-SHAPES.x = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[0, 0], [1, 0]] : [[0, 0], [0, 1]]);
+// x 置换块：三格直条，中间是漩涡核心（第 0 格），能横竖转。落地后从它占的行一直到它下面两行，把每一行里所有被盖住的空洞
+//   都和同一行里露天的实心格对调（就近配对）——空洞被换到上面能直接填的地方。下落时会提前标出哪些洞会被修好
+SHAPES.x = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 1], [0, 1], [2, 1]] : [[1, 1], [1, 0], [1, 2]]);
 // b 桥梁块：横着 4 格的木板，不能转。悬空的跨度最多 2 格（再宽的那段当场塌下去）；撑两回合后，底下没东西托着的部分连同上面压着的一起往下掉
 SHAPES.b = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0], [3, 0]]);
 // n 潮汐块：横着两格；旋转键切换方向（往右 / 往左）。落地后它所在的整行循环平移一格，从一边出去的格子从另一边进来
@@ -585,6 +586,11 @@ function makeBlock(color, D, mark){
     g.fillStyle = shade(color, -.3); g.fillRect(2 * u, 7 * u, 6 * u, u);
     if (mark === 'waveR') { g.fillStyle = '#fff'; g.fillRect(2 * u, 5 * u, 5 * u, u); g.fillRect(6 * u, 4 * u, u, 3 * u); g.fillRect(7 * u, 5 * u, u, u); }
     if (mark === 'waveL') { g.fillStyle = '#fff'; g.fillRect(3 * u, 5 * u, 5 * u, u); g.fillRect(3 * u, 4 * u, u, 3 * u); g.fillRect(2 * u, 5 * u, u, u); }
+  }
+  if (mark === 'vortex') { // 漩涡：从外圈往里卷的螺旋，外圈青色、里圈白色
+    g.fillStyle = '#2bd4c8'; for (const [px, py] of [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6], [7, 7], [6, 7], [5, 7], [4, 7], [3, 7], [2, 7], [2, 6], [2, 5], [2, 4]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = '#9ff7ef'; for (const [px, py] of [[3, 4], [4, 4], [5, 4], [5, 5], [4, 5]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, u, u);
   }
   if (mark === 'cloud') { // 寄存：一朵白色的小云
     g.fillStyle = '#fff'; g.fillRect(4 * u, 3 * u, 2 * u, u); g.fillRect(3 * u, 4 * u, 5 * u, u); g.fillRect(2 * u, 5 * u, 6 * u, 2 * u);
@@ -939,7 +945,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' || t === 'x' || t === 'n' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'x' || t === 'n' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' || t === 'n' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'n' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
   return true;
@@ -1484,24 +1490,25 @@ function elevatorLift(cs){
   board[end][cx] = null;
   return { cx, moved };
 }
-// 置换：在它占的每一行里挑一对「实心格 ↔ 空格」对调；被盖住的空洞优先换到露天的实心格那边，同样好时挑离得近的
-function exchangeCells(cs){
-  const res = [];
-  for (const y of [...new Set(cs.map(([, y]) => y))]) {
-    if (y < 0) continue;
-    const own = cs.filter(([, yy]) => yy === y).map(([x]) => x), covered = x => { for (let yy = 0; yy < y; yy++) if (board[yy][x]) return true; return false; };
-    let best = null;
-    for (let sx = 0; sx < COLS; sx++) {
-      if (!board[y][sx] || own.includes(sx)) continue;
+// 置换：从它占的最上面一行到它底下两行，逐行（从上往下）把被盖住的空洞和露天的实心格就近配对、对调，直到这一行没有可修的洞；
+// 上面一行挪走了格子，下面的洞可能因此露天，所以每换一次都重新判断。bd 可以传一份棋盘副本，用来提前算出会修哪些洞
+function exchangeCells(cs, bd = board){
+  const res = [], own = new Set(cs.map(([x, y]) => y * COLS + x)), ys = cs.map(([, y]) => y);
+  const covered = (x, y) => { for (let yy = 0; yy < y; yy++) if (bd[yy][x]) return true; return false; };
+  for (let y = Math.max(0, Math.min(...ys)); y <= Math.min(TROWS - 1, Math.max(...ys) + 2); y++) {
+    for (let guard = 0; guard < COLS; guard++) {
+      let best = null;
       for (let ex = 0; ex < COLS; ex++) {
-        if (board[y][ex]) continue;
-        const sc = (covered(ex) ? 100 : 0) + (covered(sx) ? 0 : 50) - Math.abs(sx - ex) - .01 * Math.min(...own.map(o => Math.abs(o - sx)));
-        if (!best || sc > best.sc) best = { sc, sx, ex };
+        if (bd[y][ex] || !covered(ex, y)) continue;
+        for (let sx = 0; sx < COLS; sx++) {
+          if (!bd[y][sx] || own.has(y * COLS + sx) || covered(sx, y)) continue;
+          const d = Math.abs(sx - ex); if (!best || d < best.d) best = { d, sx, ex };
+        }
       }
+      if (!best) break;
+      const k = bd[y][best.sx]; bd[y][best.ex] = k; bd[y][best.sx] = null;
+      res.push({ y, sx: best.sx, ex: best.ex, k });
     }
-    if (!best) continue;
-    const k = board[y][best.sx]; board[y][best.ex] = k; board[y][best.sx] = null;
-    res.push({ y, sx: best.sx, ex: best.ex, k });
   }
   return res;
 }
@@ -1572,7 +1579,7 @@ function lock(){
   if (pieceT === 'Q') fxHeavyLand(cs);
   if (pieceT === 'h') { const res = hingeFold(cs); if (res) { fxHinge(res); Sfx.hinge(); } }
   if (pieceT === 'v') { const res = elevatorLift(cs); if (res) { fxLift(res); Sfx.lift(); } }
-  if (pieceT === 'x') { const res = exchangeCells(cs); if (res.length) { fxXchg(res); Sfx.xchg(); } }
+  if (pieceT === 'x') { const res = exchangeCells(cs); fxVortex(cs[0]); if (res.length) { fxXchg(res); Sfx.xchg(); score += res.length * 20 * level; } }
   if (pieceT === 'n' && cs[0][1] >= 0) { const dir = pieceR % 2 ? -1 : 1; tideShift(cs[0][1], dir); fxWave(cs[0][1], dir); Sfx.wave(); }
   if (pieceT === 'b') { const fell = bridgeBuild(cs); fxBridge(cs); Sfx.bridge(); if (fell.length) { fxSettle(fell); Sfx.settle(); } }
   if (pieceT === 'V' && cs[0][1] >= 0) { const res = bladeCut(cs); fxBlade(cs, res); Sfx.slash(res.cut.length, 0); score += res.cut.length * 10 * level; } // 刀刃：切掉刀尖左右紧贴的方块
@@ -1821,6 +1828,18 @@ function render(){
     }
     if (cur && (state === 'play' || state === 'countdown' || state === 'pause')) {
       const cs = SHAPES[cur.t][cur.r], gm = ghostMode();
+      if (cur.t === 'x' && state === 'play' && gm !== 'off') { // 置换：落点往下三行铺一层淡青，会被修好的洞画一个闪动的菱形
+        const gy = ghostY(), gcs = cs.map(([cx, cy]) => [cur.x + cx, gy + cy]), bd = board.map(row => row.slice()), u = Math.max(1, Math.round(CD / 10)), ph = Math.floor(performance.now() / 160) % 2;
+        for (const [x, y] of gcs) if (y >= 0) bd[y][x] = 'x';
+        const ys = gcs.map(([, y]) => y), y0 = Math.max(HID, Math.min(...ys)), y1 = Math.min(TROWS - 1, Math.max(...ys) + 2);
+        ctx.fillStyle = 'rgba(43,212,200,.08)'; ctx.fillRect(0, (y0 - HID) * CD, COLS * CD, (y1 - y0 + 1) * CD);
+        for (const q of exchangeCells(gcs, bd)) if (q.y >= HID) {
+          const X = q.ex * CD, Y = (q.y - HID) * CD;
+          ctx.fillStyle = ph ? '#9ff7ef' : '#2bd4c8';
+          ctx.fillRect(X + 4 * u, Y + 2 * u, 2 * u, u); ctx.fillRect(X + 3 * u, Y + 3 * u, 4 * u, u); ctx.fillRect(X + 2 * u, Y + 4 * u, 6 * u, 2 * u); ctx.fillRect(X + 3 * u, Y + 6 * u, 4 * u, u); ctx.fillRect(X + 4 * u, Y + 7 * u, 2 * u, u);
+          ctx.strokeStyle = 'rgba(159,247,239,.5)'; ctx.lineWidth = u; ctx.strokeRect(q.sx * CD + u / 2, Y + u / 2, CD - u, CD - u);
+        }
+      }
       if (cur.t === 'n' && state === 'play') { // 潮汐：落点那一行铺一层淡蓝，几道箭头朝要平移的方向流动
         const gy = ghostY() + cs[0][1], dir = cur.r % 2 ? -1 : 1, u = Math.max(1, Math.round(CD / 10)), sy = (gy - HID) * CD, ph = Math.floor(performance.now() / 60);
         if (gy >= HID) {
@@ -2212,9 +2231,23 @@ function fxXchg(res){
       g.globalAlpha = .35; g.fillStyle = '#22c7c7'; g.fillRect(Math.min(X0, X), Y + c / 2 - u, Math.abs(X - X0) + c / 2, 2 * u); g.globalAlpha = 1;
       g.drawImage(blockCache[q.k], X, Y - lift, c, c);
     });
-    for (let i = 0; i < 8; i++) addP({ x: X1 + c / 2, y: Y + c / 2, vx: rand(-140, 140), vy: rand(-140, 60), max: rand(160, 300), s: u, c: i % 2 ? '#8ff0f0' : '#fff', delay: 280 });
+    for (let i = 0; i < 8; i++) addP({ x: X1 + c / 2, y: Y + c / 2, vx: rand(-140, 140), vy: rand(-140, 60), max: rand(160, 300), s: u, c: i % 2 ? '#9ff7ef' : '#fff', delay: 280 });
   }
-  banner('#banner', [['SWITCH!', 't-clear']], .45);
+  banner('#banner', res.length > 1 ? [['SWITCH!', 't-tetris'], ['FIXED ' + res.length + ' HOLES', 't-combo']] : [['SWITCH!', 't-clear']], .7);
+}
+// 置换块落地：核心处一个往外旋开的漩涡（两圈青白色的像素点边转边扩散），再甩出一圈粒子
+function fxVortex([x, y]){
+  if (y < HID) return;
+  const r = bRect(), c = CELL, u = px(c), X = r.left + (x + .5) * c, Y = r.top + (y - HID + .5) * c;
+  anim(420, (k, g) => {
+    for (let arm = 0; arm < 3; arm++) for (let i = 0; i < 14; i++) {
+      const f = i / 14, a = arm * Math.PI * 2 / 3 + f * 5 + k * 9, rad = (f * 1.6 + k * 1.2) * c;
+      g.globalAlpha = (1 - k) * (1 - f * .5); g.fillStyle = f < .3 ? '#fff' : f < .65 ? '#9ff7ef' : '#2bd4c8';
+      g.fillRect(Math.round((X + Math.cos(a) * rad) / u) * u, Math.round((Y + Math.sin(a) * rad) / u) * u, u, u);
+    }
+    g.globalAlpha = 1;
+  });
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; addP({ x: X, y: Y, vx: Math.cos(a) * 220 - Math.sin(a) * 120, vy: Math.sin(a) * 220 + Math.cos(a) * 120, max: rand(240, 380), s: u, c: i % 2 ? '#2bd4c8' : '#fff' }); }
 }
 // 潮汐：一道浪头从一边卷到另一边——浪身由深到浅的蓝、浪尖一圈白沫，一路往前甩水花，整行跟着滑
 function fxWave(y, dir){
