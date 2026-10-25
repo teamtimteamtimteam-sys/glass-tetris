@@ -415,8 +415,8 @@ SHAPES.b = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0], [3, 0]]);
 SHAPES.n = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 0], [2, 0], [3, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1]]);
 // f 寄存块：T 形。落地后先悬浮在原地（不挡路），接下来两块方块可以从它身上穿过去；之后它才真正落下
 SHAPES.f = SHAPES.T;
-// u 反重力块：一只飞碟——上面 2 格玻璃罩、下面 4 格飞碟盘，不能转。落地后整个场地上下倒过来两回合（方块从下往上「落」，原来的堆积镜像到上方），之后翻回来
-SHAPES.u = [0, 1, 2, 3].map(() => [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1]]);
+// u 反重力块：2×2 的小飞碟——上面 2 格玻璃罩、下面 2 格飞碟盘，不能转。落地后整个场地上下倒过来五回合（方块从下往上「落」，原来的堆积镜像到上方），之后翻回来
+SHAPES.u = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // k 推土机：底下 3 格（钢铲 + 车身 + 车身）、后上方 1 格驾驶室，不能转；朝向跟着玩家最后一次左右移动走（r 0 朝右 / 1 朝左）
 //   落地时，钢铲正前方连着 1～3 格方块、再往前一格是空的：把这一组整体往前推一格。第 0 格是钢铲，第 3 格是驾驶室
 SHAPES.k = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[2, 1], [1, 1], [0, 1], [0, 0]] : [[0, 1], [1, 1], [2, 1], [2, 0]]);
@@ -429,8 +429,8 @@ const isSpecial = t => t === 'u' || t === 'k' || t === 'j' || t === 'h' || t ===
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
 // 特殊方块的占比（2026-10-21 起：三格中条、换位块各 0.25%，其余每种 1%；塌落块算一种，S、Z 形各占一半）
 // 箭头、火焰、刀刃、牵连四种已删除（代码还在，但不会再出现）
-// 2026-10-23 加了铰链、电梯、置换、桥梁、潮汐、寄存六种，各 1.5%；2026-10-25 加了反重力、推土机、钻头三种，各 2%
-const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .02], ['h', .015], ['v', .015], ['x', .015], ['b', .015], ['n', .015], ['f', .015], ['u', .02], ['k', .02], ['j', .02]];
+// 2026-10-23 加了铰链、电梯、置换、桥梁、潮汐、寄存六种，各 1.5%；2026-10-25 加了反重力、推土机、钻头三种，各 2%（推土机当天又删了，代码还在，但不会再出现）
+const SPECIAL_SHARE = [['D', .01], ['N', .0025], ['C', .01], ['Y', .01], ['H', .01], ['K', .01], ['U', .01], ['Q', .01], ['E', .01], ['R', .005], ['P', .005], ['B', .01], ['M', .01], ['w', .0025], ['c', .01], ['t', .01], ['g', .01], ['d', .02], ['h', .015], ['v', .015], ['x', .015], ['b', .015], ['n', .015], ['f', .015], ['u', .02], ['j', .02]];
 const SHARE_SUM = SPECIAL_SHARE.reduce((a, [, f]) => a + f, 0);
 const SP_PER_BAG = 7 * SHARE_SUM / (1 - SHARE_SUM), SP_TRIES = Math.max(1, Math.ceil(SP_PER_BAG)), SP_TRY_P = SP_PER_BAG / SP_TRIES;
 const SP_DRAWS = 6; // 每袋固定抽 6 次（够「特殊方块 ×3」用）；次数固定，所以随机数用量不随级别变化 // 每一袋 7 块里额外混进一块的概率
@@ -1002,7 +1002,7 @@ function collide(t, r, x, y){
 const canMove = (dx, dy) => !collide(cur.t, cur.r, cur.x + dx, cur.y + dy);
 function placePiece(t){
   const r = spawnRot(t);
-  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
+  cur = { t, r, x: t === 'O' || t === 'D' || t === 'F' || t === 'C' || t === 'Y' || t === 'A' || t === 'E' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd' || t === 'v' || t === 'u' ? 4 : 3, y: t === 'I' || t === 'Q' || t === 'E' ? 0 : t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'D' || t === 'Y' || t === 'A' || t === 'v' || t === 'b' ? 2 : 1 }; // 竖长条占 4 行，起点再高一行，露出下半截；只有一行高的小点和短条直接出现在可见的第一行
   dropAcc = 0; lockTimer = 0; lockResets = 0; lowestY = cur.y; onGround = false;
   faceDozer();
   if (collide(t, r, cur.x, cur.y)) { cur.y -= 1; if (collide(t, r, cur.x, cur.y)) { topOut(); return false; } }
@@ -1687,7 +1687,7 @@ function lock(){
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i, pieceR); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
-  if (pieceT === 'u') { antiTurns = 3; setFlip(true); fxUfo(cs); Sfx.ufo(); } // 3：这一轮结束时先减成 2，接下来两块是倒过来玩的
+  if (pieceT === 'u') { antiTurns = 6; setFlip(true); fxUfo(cs); Sfx.ufo(); } // 6：这一轮结束时先减成 5，接下来五块是倒过来玩的
   if (pieceT === 'k') { const res = dozerPush(cs, pieceR); fxDozer(cs, pieceR, res); if (res) Sfx.dozer(); else Sfx.lock(); }
   if (pieceT === 'h') { const res = hingeFold(cs); if (res) { fxHinge(res); Sfx.hinge(); } }
   if (pieceT === 'v') { const res = elevatorLift(cs); if (res) { fxLift(res); Sfx.lift(); } }
@@ -1941,9 +1941,9 @@ function render(){
     if (cur && (state === 'play' || state === 'countdown' || state === 'pause')) {
       const cs = SHAPES[cur.t][cur.r], gm = ghostMode();
       if (cur.t === 'u' && state === 'play') { // 飞碟：底下一道往下照的牵引光束，一直照到落点
-        const gy = ghostY(), u = Math.max(1, Math.round(CD / 10)), top = (cur.y + 2 - HID) * CD, bot = (gy + 2 - HID) * CD, ph = Math.floor(performance.now() / 60);
+        const gy = ghostY(), u = Math.max(1, Math.round(CD / 10)), top = (cur.y + 2 - HID) * CD, bot = (gy + 2 - HID) * CD, ph = Math.floor(performance.now() / 60), cx = (cur.x + 1) * CD;
         if (bot > top) for (let yy = Math.max(0, top); yy < bot; yy += u) {
-          const f = (yy - top) / Math.max(1, bot - top), half = (1.6 + f * 1.4) * CD, cx = (cur.x + 2) * CD;
+          const f = (yy - top) / Math.max(1, bot - top), half = (.9 + f * 1.2) * CD;
           ctx.fillStyle = (Math.floor(yy / u) + ph) % 6 === 0 ? 'rgba(200,255,170,.22)' : 'rgba(170,255,140,.08)';
           ctx.fillRect(Math.round(cx - half), yy, Math.round(half * 2), u);
         }
@@ -2462,7 +2462,7 @@ function fxUfo(cs){
   });
   for (let i = 0; i < 30; i++) addP({ x: cx + rand(-2 * c, 2 * c), y: cy + rand(0, H / 2), vx: rand(-30, 30), vy: rand(-380, -160), max: rand(300, 600), s: u, c: ['#7dff5a', '#e8ffd8', '#6fd9c0'][i % 3] });
   shake(5, 300);
-  banner('#banner', [['ANTI-GRAVITY!', 't-tetris'], [pixelTextImg('场地倒置两回合', COLS * CELL), 't-cn']], 1.1);
+  banner('#banner', [['ANTI-GRAVITY!', 't-tetris'], [pixelTextImg('场地倒置五回合', COLS * CELL), 't-cn']], 1.1);
 }
 // 推土机：被推的那几格往前滑一格，钢铲前面扬起一团土
 function fxDozer(cs, r, res){
