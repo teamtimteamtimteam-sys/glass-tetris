@@ -304,7 +304,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
   o:'#e8b020',                                                // 金币格（第 6 级「寻宝」）
   t:'#4a2a3a', t4:'#4a2a3a', t3:'#4a2a3a', t2:'#6e2a33', t1:'#a8222a',  // 倒计时块：暗色外壳 + 红色数码管数字，越接近爆炸越红
-  g:'#3f7a2e', g2:'#5d9a3a',                                  // 寄生方块：一块毛茸茸的青苔（深绿底 + 一簇簇亮绿的绒毛 + 几颗小孢子）
+  g:'#2d5a22', g2:'#3f7a2e',                                  // 寄生方块：深绿色的方块，顶上盖着一层毛茸茸的青苔、身上零星苔点和孢子
   d:'#f4f4f4', d1:'#f4f4f4', d2:'#f4f4f4', d3:'#f4f4f4', d4:'#f4f4f4', // 赌徒方块：白色骰子、红色点数
   c:'#f4f0ea', c2:'#ffffff',                                 // 理发块：白底红蓝斜纹的理发店转灯
   a:'#ff6fb5', a2:'#ffc0e0',                                 // 箭头方块：粉色底上一个白色的朝下箭头（小猪的颜色）
@@ -533,16 +533,12 @@ function makeBlock(color, D, mark){
     g.fillStyle = mark[5] === '1' ? '#fff3c0' : '#ff5a4a';
     DIG.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'x') g.fillRect((3 + i + .5) * u, (2.5 + j) * u, u, u); }));
   }
-  if (mark === 'germ') { // 青苔：不描硬边，深绿底上铺满深浅不一的绒点，上沿冒出几簇小绒毛，零星几颗黄白色孢子；连成一片时像一块苔藓地毯
-    g.fillStyle = '#070910'; g.fillRect(0, 0, D, D);
-    g.fillStyle = shade(color, -.25); g.fillRect(0, u, D, D - u);
-    g.fillStyle = color; g.fillRect(0, 2 * u, D, D - 3 * u);
-    const pal = [shade(color, -.35), shade(color, .25), shade(color, .5), '#9fd65a'];
-    for (let yy = 1; yy < 10; yy++) for (let xx = 0; xx < 10; xx++) { const h = (xx * 37 + yy * 61 + xx * yy * 7) % 23; if (h < 9) { g.fillStyle = pal[h % 4]; g.fillRect(xx * u, yy * u, u, u); } }
-    g.fillStyle = '#9fd65a'; for (const [px, py] of [[1, 0], [2, 1], [4, 0], [5, 1], [7, 0], [8, 1], [9, 0]]) g.fillRect(px * u, py * u, u, u); // 上沿的绒毛
-    g.fillStyle = '#c8f08a'; for (const [px, py] of [[2, 0], [7, 1], [4, 4], [8, 6]]) g.fillRect(px * u, py * u, u, u);
-    g.fillStyle = '#f4e9a0'; g.fillRect(3 * u, 6 * u, u, u); g.fillRect(6 * u, 3 * u, u, u);                                  // 孢子
-    return c;
+  if (mark === 'germ') { // 青苔方块：保留普通方块的轮廓和立体边，顶上一层往下垂的苔藓绒毛，身上几点苔斑和两颗孢子
+    const moss = ['#4f8a34', '#6fae3c', '#8fcf4a'];
+    for (let xx = 1; xx < 9; xx++) { const h = 2 + (xx * 7 + 3) % 3; for (let yy = 1; yy < 1 + h; yy++) { g.fillStyle = moss[(xx + yy) % 3]; g.fillRect(xx * u, yy * u, u, u); } }
+    g.fillStyle = '#a8e060'; for (const [px, py] of [[2, 1], [5, 1], [7, 2]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = moss[0]; for (const [px, py] of [[3, 6], [6, 7], [7, 5]]) g.fillRect(px * u, py * u, u, u);
+    g.fillStyle = '#e8dc8a'; g.fillRect(4 * u, 7 * u, u, u); g.fillRect(6 * u, 5 * u, u, u);
   }
 
   if (mark && mark.startsWith('dice')) { // 骰子：红色点数 1～4
@@ -1724,9 +1720,9 @@ function lock(){
     if (blast.cores.length) { fxLinkBlast(blastSnap, blast.cores); Sfx.link(); score += blasted * 10 * level; }
     frozenRows = 0;
     combo++; maxCombo = Math.max(maxCombo, combo);
-    let pts = linePts(n) * level * (iceN ? 2 : 1), b2bNow = false; // 带着冰封行一起消：行数 = 触发行 + 冰封行，分数翻倍
+    let pts = (linePts(n) + 100 * n) * level * (iceN ? 2 : 1), b2bNow = false; // 每消一行额外 +100×级别 // 带着冰封行一起消：行数 = 触发行 + 冰封行，分数翻倍
     const penta = pieceT === 'E' && n >= 5;                          // 伸缩块伸长后一次消 5 行：按五消算，远高于四消
-    if (penta) pts = PENTA_PTS * level * (iceN ? 2 : 1);
+    if (penta) pts = (PENTA_PTS + 100 * n) * level * (iceN ? 2 : 1);
     if (nEff === 4) { b2b++; tetrises++; if (b2b >= 2) { pts = Math.floor(pts * 1.5); b2bNow = true; } } else b2b = 0;
     if (combo >= 2) pts += 50 * (combo - 1) * level * (rules().combo || 1);
     const pc = board.every(row => row.every(c => !c));
