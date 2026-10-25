@@ -392,9 +392,9 @@ const HAS_CORE = t => t === 'H' || t === 'K' || t === 'U' || t === 'A' || t === 
 const isAuraCore = k => k === 'AS'; // 棋盘上带白芯的牵连格（会一明一暗）
 const LINK_REACH = 3;               // 牵连块被消时，上下各波及几层
 const ALL_CORE = t => t === 'K'; // 易碎块整块都是玻璃格
-const cellKey = (t, i, r = 0) => t === 'u' ? (i < 2 ? 'uD' : 'u') : t === 'k' ? (i === 0 ? (r % 2 ? 'kBL' : 'kBR') : i === 3 ? 'kC' : 'k') : t === 'j' ? (i < 3 ? 'jB' : 'j') : t === 'n' ? (i < 3 ? 'nF' : 'n') : t === '~' ? 'f' : t === 'x' ? (i === 0 ? 'xS' : 'x') : t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
+const cellKey = (t, i, r = 0) => t === 'u' ? (i < 2 ? 'uD' : 'u') : t === 'k' ? (i === 0 ? (r % 2 ? 'kBL' : 'kBR') : i === 3 ? 'kC' : 'k') : t === 'j' ? (i < 3 ? 'jB' : 'j') : t === 'n' ? (i < 2 ? 'nF' : 'n') : t === '~' ? 'f' : t === 'x' ? (i === 0 ? 'xS' : 'x') : t === 'h' ? (i < 2 ? 'h' : 'hB') : t === 'v' ? (i === 0 ? 'vS' : 'v') : t === 'b' ? 'b3' : t === 't' ? 't4' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? ['VS', 'V', 'VH'][i] : t === 'P' ? 'R' : t === 'E' ? (i >= 3 ? 'ET' : 'E') : t === 'Y' ? 'Y3' : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' : t) : t;
 // 正在下落的方块每一格用哪张贴图（闪烁时：有特殊格的只闪特殊格）
-const fallSkin = (t, i, blink) => t === 'u' ? (i < 2 ? 'uD' : 'u') + (blink ? '2' : '') : t === 'j' ? (i < 3 ? 'jB' : 'j') + (blink ? '2' : '') : t === 'n' ? (i < 3 ? 'nF' : 'n') + (blink ? '2' : '') : t === 'x' ? (i === 0 ? 'xS' : 'x') + (blink ? '2' : '') : t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
+const fallSkin = (t, i, blink) => t === 'u' ? (i < 2 ? 'uD' : 'u') + (blink ? '2' : '') : t === 'j' ? (i < 3 ? 'jB' : 'j') + (blink ? '2' : '') : t === 'n' ? (i < 2 ? 'nF' : 'n') + (blink ? '2' : '') : t === 'x' ? (i === 0 ? 'xS' : 'x') + (blink ? '2' : '') : t === 'h' ? (i < 2 ? 'h' : 'hB') + (blink ? '2' : '') : t === 'v' ? (i === 0 ? 'vS' : 'v') + (blink ? '2' : '') : t === 'b' ? (blink ? 'bL' : 'b') : t === 't' ? 't3' : t === 'd' ? 'd' + (i + 1) : t === 'V' ? (i === 0 ? 'VS' + (blink ? '2' : '') : cellKey(t, i)) : t === 'P' ? 'R' + (blink ? '2' : '') : t === 'E' ? cellKey(t, i) + (blink ? '2' : '') : HAS_CORE(t) ? (i === 0 || ALL_CORE(t) ? t + 'S' + (blink ? '2' : '') : t) : t + (blink ? '2' : '');
 // 贴图上的花纹由格子类型决定
 const markOf = k => k[0] === 'u' ? (k[1] === 'D' ? 'dome' : 'saucer') : k[0] === 'k' ? (k[1] === 'B' ? (k[2] === 'L' ? 'bladeL' : 'bladeR') : k[1] === 'C' ? 'cab' : 'dozer') : k[0] === 'j' ? (k[1] === 'B' ? (k[2] === '2' ? 'auger2' : 'auger') : 'rig') : k[0] === 'h' ? 'hinge' : k[0] === 'v' ? (k[1] === 'S' ? 'liftS' : 'lift') : k[0] === 'x' ? (k[1] === 'S' ? 'vortex' : 'xchg') : k[0] === 'b' ? (k === 'b1' ? 'plank1' : 'plank') : k[0] === 'n' ? (k[1] === 'F' ? 'foam' : 'wave') : k[0] === 'f' ? 'cloud' : k === 'o' ? 'coin' : k[0] === 't' ? 'timer' + (k[1] === '4' ? '3' : k[1] || '3') : k[0] === 'g' ? 'germ' : k[0] === 'd' ? 'dice' + (k[1] || '1') : k[0] === 'c' ? 'pole' : k[0] === 'a' ? 'arrow' : k.startsWith('wS') ? 'swap' : k[0] === 'M' ? 'saw' : k.startsWith('VS') ? 'edge' : k === 'VH' ? 'hilt' : k === 'V' ? 'blade' : k.startsWith('BS') ? 'drill' : k[0] === 'B' ? 'hazard' : k[0] === 'R' || k[0] === 'P' ? 'crumb' : k.startsWith('AS') ? 'aura' : k.startsWith('ET') ? 'rod' : k[0] === 'E' ? 'tube' : k[0] === 'Q' ? 'heavy' : k.startsWith('KS') ? 'glass' : k.startsWith('US') ? 'steel' : k === 'UC' ? 'crack' : k.startsWith('HS') ? 'plug' : isSpecial(k[0]) ? k[0] : null;
 // Y 两格植物块（草绿色短条）：落地后的三个回合里，每回合朝一个随机的空位长出一格
@@ -410,12 +410,12 @@ SHAPES.v = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
 SHAPES.x = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 1], [0, 1], [2, 1]] : [[1, 1], [1, 0], [1, 2]]);
 // b 桥梁块：横着 4 格的木板，不能转。悬空的跨度最多 2 格（再宽的那段当场塌下去）；撑两回合后，底下没东西托着的部分连同上面压着的一起往下掉
 SHAPES.b = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0], [3, 0]]);
-// n 潮汐块：五格的「卷浪」——上面一排 3 格浪尖探向前方，底下 2 格浪身；旋转键左右翻转（浪往哪边卷，就往哪边推）
-//   落地后整个棋盘上的全部方块一起往那个方向循环平移一格（每一行从一边出去的格子从另一边进来）。前 3 格是浪尖
-SHAPES.n = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 0], [2, 0], [3, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1]]);
+// n 潮汐块：S 形（浪尖探向右，往右推）和 Z 形（浪尖探向左，往左推）两种，旋转键在两者之间切换
+//   落地后整个棋盘上的全部方块一起往那个方向循环平移一格（每一行从一边出去的格子从另一边进来）。前 2 格是上面那排带白沫的浪尖
+SHAPES.n = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[1, 0], [2, 0], [0, 1], [1, 1]] : [[0, 0], [1, 0], [1, 1], [2, 1]]);
 // f 寄存块：T 形。落地后先悬浮在原地（不挡路），接下来两块方块可以从它身上穿过去；之后它才真正落下
 SHAPES.f = SHAPES.T;
-// u 反重力块：2×2 的小飞碟——上面 2 格玻璃罩、下面 2 格飞碟盘，不能转。落地后整个场地上下倒过来五回合（方块从下往上「落」，原来的堆积镜像到上方），之后翻回来
+// u 反重力块：2×2 的小飞碟——上面 2 格玻璃罩、下面 2 格飞碟盘，不能转。落地后整个场地上下倒过来三回合（方块从下往上「落」，原来的堆积镜像到上方），之后翻回来
 SHAPES.u = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
 // k 推土机：底下 3 格（钢铲 + 车身 + 车身）、后上方 1 格驾驶室，不能转；朝向跟着玩家最后一次左右移动走（r 0 朝右 / 1 朝左）
 //   落地时，钢铲正前方连着 1～3 格方块、再往前一格是空的：把这一组整体往前推一格。第 0 格是钢铲，第 3 格是驾驶室
@@ -1687,7 +1687,7 @@ function lock(){
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i, pieceR); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
-  if (pieceT === 'u') { antiTurns = 6; setFlip(true); fxUfo(cs); Sfx.ufo(); } // 6：这一轮结束时先减成 5，接下来五块是倒过来玩的
+  if (pieceT === 'u') { antiTurns = 4; setFlip(true); fxUfo(cs); Sfx.ufo(); } // 4：这一轮结束时先减成 3，接下来三块是倒过来玩的
   if (pieceT === 'k') { const res = dozerPush(cs, pieceR); fxDozer(cs, pieceR, res); if (res) Sfx.dozer(); else Sfx.lock(); }
   if (pieceT === 'h') { const res = hingeFold(cs); if (res) { fxHinge(res); Sfx.hinge(); } }
   if (pieceT === 'v') { const res = elevatorLift(cs); if (res) { fxLift(res); Sfx.lift(); } }
@@ -2462,7 +2462,7 @@ function fxUfo(cs){
   });
   for (let i = 0; i < 30; i++) addP({ x: cx + rand(-2 * c, 2 * c), y: cy + rand(0, H / 2), vx: rand(-30, 30), vy: rand(-380, -160), max: rand(300, 600), s: u, c: ['#7dff5a', '#e8ffd8', '#6fd9c0'][i % 3] });
   shake(5, 300);
-  banner('#banner', [['ANTI-GRAVITY!', 't-tetris'], [pixelTextImg('场地倒置五回合', COLS * CELL), 't-cn']], 1.1);
+  banner('#banner', [['ANTI-GRAVITY!', 't-tetris'], [pixelTextImg('场地倒置三回合', COLS * CELL), 't-cn']], 1.1);
 }
 // 推土机：被推的那几格往前滑一格，钢铲前面扬起一团土
 function fxDozer(cs, r, res){
