@@ -324,7 +324,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   f:'#ff9ccf', f2:'#ffd0e8',                                // 寄存块：粉色的气球云
   u:'#aab4c8', u2:'#d4dbe8', uD:'#6fd9c0', uD2:'#b8fff0',   // 反重力块：银色飞碟盘（u，一圈彩灯）+ 上面青色玻璃罩里坐着一个绿色小外星人（uD）
   k:'#f2b705', k2:'#ffd84a', kC:'#f2b705', kC2:'#ffd84a', kBR:'#8f98aa', kBR2:'#c3cbd9', kBL:'#8f98aa', kBL2:'#c3cbd9', // 推土机：黄色车身（k）+ 驾驶室（kC）+ 钢铲（kBR 朝右 / kBL 朝左）
-  j:'#c0392b', j2:'#e85c4a', jB:'#5a6378', jB2:'#5a6378',   // 钻头块：红色钻机（j）+ 底下一排螺旋钻头（jB，jB2 是转动的另一帧）
+  j:'#c0392b', j2:'#e85c4a', jB:'#5a6378', jB2:'#5a6378', jr:'#c0392b', jr2:'#e85c4a', // jr = 钻完以后只剩的红色钻机   // 钻头块：红色钻机（j）+ 底下一排螺旋钻头（jB，jB2 是转动的另一帧）
   N:'#b2d23a', N2:'#e6f6a0', X:'#7d8398' }; // N = 闪烁中条，X = 中条招来的残缺行 // D = 闪烁小点，F = 火焰方块（三帧火色轮换），M = 闪烁短条；带 2 的是闪烁的第二帧
 const TYPES = 'IJLOSTZ';
 const BASE = {
@@ -420,8 +420,10 @@ SHAPES.u = [0, 1, 2, 3].map(() => [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1
 // k 推土机：底下 3 格（钢铲 + 车身 + 车身）、后上方 1 格驾驶室，不能转；朝向跟着玩家最后一次左右移动走（r 0 朝右 / 1 朝左）
 //   落地时，钢铲正前方连着 1～3 格方块、再往前一格是空的：把这一组整体往前推一格。第 0 格是钢铲，第 3 格是驾驶室
 SHAPES.k = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[2, 1], [1, 1], [0, 1], [0, 0]] : [[0, 1], [1, 1], [2, 1], [2, 0]]);
-// j 钻头块：上面 3 格钻机、底下一排 3 个钻头，不能转。第一次落地时每个钻头往下钻掉最多 3 个方块，然后整块接着往下沉，再落地才锁定；前 3 格是钻头
+// j 钻头块：上面 3 格钻机、底下一排 3 个钻头，不能转。第一次落地时每个钻头往下钻掉最多 3 个方块，然后钻头脱落消失，只剩红色钻机（jr）接着往下沉，再落地才锁定；前 3 格是钻头
 SHAPES.j = [0, 1, 2, 3].map(() => [[0, 1], [1, 1], [2, 1], [0, 0], [1, 0], [2, 0]]);
+// jr：钻头块钻完以后，钻头脱落消失，只剩上面 3 格红色钻机接着往下落
+SHAPES.jr = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0]]);
 const isSpecial = t => t === 'u' || t === 'k' || t === 'j' || t === 'h' || t === 'v' || t === 'x' || t === 'b' || t === 'n' || t === 'f' || t === 'D' || t === 'F' || t === 'N' || t === 'C' || t === 'Y' || t === 'H' || t === 'K' || t === 'U' || t === 'Q' || t === 'A' || t === 'E' || t === 'R' || t === 'P' || t === 'B' || t === 'V' || t === 'M' || t === 'w' || t === 'a' || t === 'c' || t === 't' || t === 'g' || t === 'd';
 // 各特殊块占全部方块的比例。每袋 7 块里平均要混进 SP_PER_BAG = 7S/(1-S) 块特殊块（S = 占比之和），
 // 分成 SP_TRIES 次独立的机会来放，所以合计占比可以超过 1/8，各自的占比也不会互相挤占
@@ -1104,7 +1106,7 @@ function toggleLen(){
   return true;
 }
 function rotateCW(){
-  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c' || cur.t === 't' || cur.t === 'd' || cur.t === 'v' || cur.t === 'b' || cur.t === 'u' || cur.t === 'k' || cur.t === 'j') return false;
+  if (!cur || cur.t === 'O' || cur.t === 'D' || cur.t === 'F' || cur.t === 'a' || cur.t === 'c' || cur.t === 't' || cur.t === 'd' || cur.t === 'v' || cur.t === 'b' || cur.t === 'u' || cur.t === 'k' || cur.t === 'j' || cur.t === 'jr') return false;
   if (cur.t === 'E') return toggleLen();
   const from = cur.r, to = (from + 1) % 4;
   const sh = cur.t === 'H' ? 2 : 0; // 补洞块出场时塞子朝下，相当于标准 T 形转了半圈，踢墙表要错开两格查
@@ -1119,7 +1121,7 @@ function rotateCW(){
   return false;
 }
 function doHold(){
-  if (!cur || (holdUsed && !rules().freeHold)) return false;
+  if (!cur || cur.t === 'jr' || (holdUsed && !rules().freeHold)) return false; // 钻完正在下沉的钻机不能拿去暂存
   const t = cur.t;
   if (hold) { const h = hold; hold = t; placePiece(h); }
   else { hold = t; placePiece(takeNext()); }
@@ -1663,6 +1665,7 @@ function drillDig(){
   if (!hit.length) return false;
   score += hit.length * 10 * level;
   fxDrillDig(bits, hit); Sfx.drill();
+  cur.t = 'jr'; // 钻头脱落：只剩上面那排红色钻机（位置不变，原来钻头那一行空出来）
   lockTimer = 0; lockResets = 0; dropAcc = 0; cur.sinkFast = true; // 钻完以后快速沉下去
   return true;
 }
@@ -2493,6 +2496,7 @@ function fxDrillDig(bits, hit){
       g.globalAlpha = 1;
     });
     for (let i = 0; i < 10; i++) addP({ x: X + c / 2, y: Y0, vx: rand(-260, 260), vy: rand(-260, -60), g: 900, max: rand(200, 360), s: u, c: i % 2 ? '#ffd23f' : '#fff' }); // 钻头尖迸火花
+    if (y >= HID) for (let i = 0; i < 8; i++) addP({ x: X + rand(0, c), y: r.top + (y - HID + rand(0, 1)) * c, vx: rand(-200, 200), vy: rand(-240, -40), g: 1000, max: rand(320, 520), s: u * (i % 3 ? 1 : 2), c: ['#e6ebf3', '#8f98aa', '#4a5162'][i % 3], delay: 200 }); // 钻头磨损脱落，碎成小铁片
   }
   for (const [x, y, k] of hit) if (y >= HID) for (let i = 0; i < 6; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: r.top + (y - HID + rand(0, 1)) * c, vx: rand(-320, 320), vy: rand(-380, -80), g: 1100, max: rand(300, 520), s: u * (i % 3 ? 1 : 2), c: i % 2 ? (COLORS[k] || '#fff') : '#ff8a3c', delay: 60 + i * 15 });
   shake(7, 320);
