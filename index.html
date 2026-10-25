@@ -420,7 +420,7 @@ SHAPES.u = [0, 1, 2, 3].map(() => [[1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [3, 1
 // k 推土机：底下 3 格（钢铲 + 车身 + 车身）、后上方 1 格驾驶室，不能转；朝向跟着玩家最后一次左右移动走（r 0 朝右 / 1 朝左）
 //   落地时，钢铲正前方连着 1～3 格方块、再往前一格是空的：把这一组整体往前推一格。第 0 格是钢铲，第 3 格是驾驶室
 SHAPES.k = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[2, 1], [1, 1], [0, 1], [0, 0]] : [[0, 1], [1, 1], [2, 1], [2, 0]]);
-// j 钻头块：上面 3 格钻机、底下一排 3 个钻头，不能转。第一次落地时每个钻头往下钻掉最多 3 个方块，然后钻头脱落消失，只剩红色钻机（jr）接着往下沉，再落地才锁定；前 3 格是钻头
+// j 钻头块：上面 3 格钻机、底下一排 3 个钻头，不能转。第一次落地时每个钻头往下钻掉最多 3 个方块，然后钻头脱落消失（没钻到东西也一样），只剩红色钻机（jr）接着往下沉，再落地才锁定；前 3 格是钻头
 SHAPES.j = [0, 1, 2, 3].map(() => [[0, 1], [1, 1], [2, 1], [0, 0], [1, 0], [2, 0]]);
 // jr：钻头块钻完以后，钻头脱落消失，只剩上面 3 格红色钻机接着往下落
 SHAPES.jr = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0]]);
@@ -1662,9 +1662,8 @@ function drillDig(){
   cur.drilled = true;
   const bits = SHAPES.j[0].slice(0, 3).map(([cx, cy]) => [cur.x + cx, cur.y + cy]), hit = [];
   for (const [x, y] of bits) { let n = 0; for (let yy = y + 1; yy < TROWS && n < 3; yy++) if (board[yy][x]) { hit.push([x, yy, board[yy][x]]); board[yy][x] = null; n++; } }
-  if (!hit.length) return false;
-  score += hit.length * 10 * level;
-  fxDrillDig(bits, hit); Sfx.drill();
+  if (hit.length) { score += hit.length * 10 * level; fxDrillDig(bits, hit); Sfx.drill(); }
+  else { fxBitsDrop(bits); Sfx.lock(); } // 底下没东西可钻：钻头照样脱落
   cur.t = 'jr'; // 钻头脱落：只剩上面那排红色钻机（位置不变，原来钻头那一行空出来）
   lockTimer = 0; lockResets = 0; dropAcc = 0; cur.sinkFast = true; // 钻完以后快速沉下去
   return true;
@@ -2480,6 +2479,11 @@ function fxDozer(cs, r, res){
   });
   shake(4, 180);
   banner('#banner', [['PUSH!', 't-clear']], .45);
+}
+// 钻头没钻到东西也会脱落：原地碎成小铁片
+function fxBitsDrop(bits){
+  const r = bRect(), c = CELL, u = px(c);
+  for (const [x, y] of bits) if (y >= HID) for (let i = 0; i < 8; i++) addP({ x: r.left + (x + rand(0, 1)) * c, y: r.top + (y - HID + rand(0, 1)) * c, vx: rand(-200, 200), vy: rand(-240, -40), g: 1000, max: rand(320, 520), s: u * (i % 3 ? 1 : 2), c: ['#e6ebf3', '#8f98aa', '#4a5162'][i % 3] });
 }
 // 钻头：每一列一道往下钻的白热光柱（中间白、外圈橙红，边缘一圈螺旋火花），被钻掉的方块碎成小块往两边飞
 function fxDrillDig(bits, hit){
