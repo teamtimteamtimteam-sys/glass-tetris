@@ -304,7 +304,7 @@ const COLORS = { I:'#4cb8cf', O:'#dcbb4a', T:'#a066c2', S:'#5bb360', Z:'#cf5450'
   R:'#1fa391', R2:'#7fe0d2', P:'#1fa391',                    // 塌落块：青绿色（R = S 形，P = Z 形，落到棋盘上都记成 R）
   o:'#e8b020',                                                // 金币格（第 6 级「寻宝」）
   t:'#4a2a3a', t4:'#4a2a3a', t3:'#4a2a3a', t2:'#6e2a33', t1:'#a8222a',  // 倒计时块：暗色外壳 + 红色数码管数字，越接近爆炸越红
-  g:'#6b3fa0', g2:'#9b6fd0',                                  // 寄生方块：紫色、带绿色斑点和一只眼睛
+  g:'#b48ae6', g2:'#d7bdf7',                                  // 寄生方块：淡紫色的圆润小果冻，一张眯眼笑脸 + 粉色腮红
   d:'#f4f4f4', d1:'#f4f4f4', d2:'#f4f4f4', d3:'#f4f4f4', d4:'#f4f4f4', // 赌徒方块：白色骰子、红色点数
   c:'#f4f0ea', c2:'#ffffff',                                 // 理发块：白底红蓝斜纹的理发店转灯
   a:'#ff6fb5', a2:'#ffc0e0',                                 // 箭头方块：粉色底上一个白色的朝下箭头（小猪的颜色）
@@ -533,10 +533,18 @@ function makeBlock(color, D, mark){
     g.fillStyle = mark[5] === '1' ? '#fff3c0' : '#ff5a4a';
     DIG.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === 'x') g.fillRect((3 + i + .5) * u, (2.5 + j) * u, u, u); }));
   }
-  if (mark === 'germ') { // 寄生：绿色斑点 + 一只白眼睛（深紫色瞳孔）
-    g.fillStyle = '#9be35a'; for (const [px, py] of [[2, 2], [7, 3], [3, 7], [7, 7], [6, 2]]) g.fillRect(px * u, py * u, u, u);
-    g.fillStyle = '#fff'; g.fillRect(4 * u, 4 * u, 2 * u, 2 * u); g.fillStyle = '#3a1a5a'; g.fillRect(5 * u, 5 * u, u, u);
+  if (mark === 'germ') { // 寄生：一团圆角的果冻——深色描边、左上高光、两只小眼睛、粉腮红、小嘴巴
+    g.clearRect(0, 0, D, D); g.fillStyle = '#070910'; g.fillRect(0, 0, D, D);
+    g.fillStyle = shade(color, -.45); g.fillRect(2 * u, u, D - 4 * u, D - 2 * u); g.fillRect(u, 2 * u, D - 2 * u, D - 4 * u); // 圆角描边
+    g.fillStyle = color; g.fillRect(2 * u, 2 * u, D - 4 * u, D - 4 * u); g.fillRect(3 * u, Math.round(1.5 * u), D - 6 * u, D - 3 * u); g.fillRect(Math.round(1.5 * u), 3 * u, D - 3 * u, D - 6 * u);
+    g.fillStyle = shade(color, -.18); g.fillRect(3 * u, D - 3 * u, D - 6 * u, u);   // 底部一道阴影，显得软软鼓鼓
+    g.fillStyle = '#fff'; g.fillRect(3 * u, 3 * u, u, u); g.fillRect(Math.round(2.5 * u), 4 * u, u, u); // 高光
+    g.fillStyle = '#3a2350'; g.fillRect(Math.round(3.5 * u), 5 * u, u, u); g.fillRect(Math.round(5.5 * u), 5 * u, u, u); // 眼睛
+    g.fillStyle = '#ff9cc8'; g.fillRect(Math.round(2.5 * u), 6 * u, u, u); g.fillRect(Math.round(6.5 * u), 6 * u, u, u);  // 腮红
+    g.fillStyle = '#3a2350'; g.fillRect(Math.round(4.5 * u), Math.round(6.5 * u), u, Math.max(1, Math.round(u * .7)));                          // 小嘴
+    return c;
   }
+
   if (mark && mark.startsWith('dice')) { // 骰子：红色点数 1～4
     const n = +mark[4], P2 = { 1: [[4, 4]], 2: [[2, 2], [6, 6]], 3: [[2, 2], [4, 4], [6, 6]], 4: [[2, 2], [6, 2], [2, 6], [6, 6]] }[n];
     g.fillStyle = '#d6332e'; for (const [px, py] of P2) g.fillRect(px * u, py * u, 2 * u, 2 * u);
@@ -2773,8 +2781,8 @@ function fxParasite(grown){
   for (const [x, y] of grown) {
     if (y < HID) continue;
     const X = r.left + x * c, Y = r.top + (y - HID) * c;
-    anim(220, (k, g) => { const sz = Math.max(u, Math.round(c * Math.min(1, k * 1.5) / u) * u); g.globalAlpha = 1 - k * .6; g.fillStyle = k < .4 ? '#c9a8ff' : '#9be35a'; g.fillRect(X + (c - sz) / 2, Y + (c - sz) / 2, sz, sz); g.globalAlpha = 1; });
-    for (let i = 0; i < 5; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-90, 90), vy: rand(-90, 60), g: 300, max: rand(180, 320), s: u, c: i % 2 ? '#9be35a' : '#6b3fa0' });
+    anim(220, (k, g) => { const sz = Math.max(u, Math.round(c * Math.min(1, k * 1.5) / u) * u); g.globalAlpha = 1 - k * .6; g.fillStyle = k < .4 ? '#fff' : '#d7bdf7'; g.fillRect(X + (c - sz) / 2, Y + (c - sz) / 2, sz, sz); g.globalAlpha = 1; });
+    for (let i = 0; i < 5; i++) addP({ x: X + c / 2, y: Y + c / 2, vx: rand(-90, 90), vy: rand(-90, 60), g: 300, max: rand(180, 320), s: u, c: i % 2 ? '#ff9cc8' : '#d7bdf7' });
   }
 }
 function fxRowFlash(snap, color, text){
