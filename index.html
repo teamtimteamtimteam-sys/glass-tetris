@@ -1851,6 +1851,9 @@ function toMenu(){ state = 'menu'; Music.stop(); cur = null; showScreen('sMenu')
 /* ================= 主循环：输入事件即时生效，这里只跑重力/锁定/DAS ================= */
 const softMs = () => Math.min(SPEED[level], Math.max(45, SPEED[level] / 10));
 function update(dt){
+  // 看门狗：万一哪里出错，留下「在玩但没有方块」或「在放过场但过场没了」的状态，就自动接着来下一块，不会卡死
+  if (state === 'cutscene' && !scene) state = 'play';
+  if (state === 'play' && !cur) { try { spawn(); } catch (e) { console.error(e); } }
   if (state === 'play' && cur) {
     playTime += dt;
     if (mode === 'daily' && playTime >= DAILY_MS) { playTime = DAILY_MS; endRun('time'); return; }
@@ -2446,8 +2449,8 @@ function fxFloatLost(cells){ // 被占掉的那几格：化成一团粉色的泡
   for (const [x, y] of cells) if (y >= HID) for (let i = 0; i < 8; i++) addP({ x: r.left + (x + .5) * c, y: r.top + (y - HID + .5) * c, vx: rand(-150, 150), vy: rand(-180, 40), max: rand(220, 380), s: u, c: i % 2 ? '#ff9ccf' : '#fff' });
 }
 function fxFloatDrop(y0){
-  const r = bRect(), c = CELL, u = px(c), cs = SHAPES[cur.t][cur.r];
-  anim(160, (k, g) => { g.globalAlpha = .45 * (1 - k); g.fillStyle = '#ff9ccf'; for (const [cx, cy] of cs) { const a = Math.max(HID, y0 + cy), b = cur.y + cy; if (b > a) g.fillRect(r.left + (cur.x + cx) * c + c / 2 - u, r.top + (a - HID) * c, 2 * u, (b - a) * c); } g.globalAlpha = 1; });
+  const r = bRect(), c = CELL, u = px(c), cs = SHAPES[cur.t][cur.r], X0 = cur.x, Y1 = cur.y; // 动画里不能再读 cur：播到一半 cur 可能已经换成下一块或变成 null
+  anim(160, (k, g) => { g.globalAlpha = .45 * (1 - k); g.fillStyle = '#ff9ccf'; for (const [cx, cy] of cs) { const a = Math.max(HID, y0 + cy), b = Y1 + cy; if (b > a) g.fillRect(r.left + (X0 + cx) * c + c / 2 - u, r.top + (a - HID) * c, 2 * u, (b - a) * c); } g.globalAlpha = 1; });
   for (const [cx, cy] of cs) if (cur.y + cy >= HID) for (let i = 0; i < 2; i++) addP({ x: r.left + (cur.x + cx + rand(0, 1)) * c, y: r.top + (cur.y + cy - HID + 1) * c, vx: rand(-90, 90), vy: rand(-140, -40), g: 600, max: rand(160, 280), s: u, c: i ? '#ffd0e8' : '#fff' });
 }
 // 反重力：飞碟底下一束绿光往下扫，整盘闪一下，然后场地翻过来
@@ -3029,7 +3032,7 @@ function drawFx(){
   fctx.clearRect(0, 0, fxW, fxH);
   { const fs = flipScale(); if (fs !== 1) { const r = bRect(), cy = (r.top + r.bottom) / 2; fctx.setTransform(DPR, 0, 0, DPR * fs, 0, DPR * cy * (1 - fs)); } } // 特效层跟着棋盘一起翻
   if (scene) (scene.kind === 'barber' ? drawBarberScene : scene.kind === 'gamble' ? drawGambleScene : drawPigScene)(fctx);
-  for (const a of A) if (a.t >= 0) a.fn(Math.min(1, a.t / a.dur), fctx);
+  for (const a of A) if (a.t >= 0) { try { a.fn(Math.min(1, a.t / a.dur), fctx); } catch (e) { console.error(e); a.t = a.dur + 1; } } // 某个特效出错就直接丢掉它，不影响游戏
   for (const p of P) {
     if (p.delay > 0) continue;
     const k = p.life / p.max;
@@ -3293,11 +3296,11 @@ if (window.ResizeObserver) new ResizeObserver(() => layout()).observe(mainEl);
 let last = performance.now(), hudT = 0;
 function frame(now){
   const dt = Math.min(50, now - last); last = now;
-  update(dt);
-  updateFx(dt);
+  requestAnimationFrame(frame); // 先排好下一帧：这一帧万一出错，游戏也不会整个卡死
+  try { update(dt); } catch (e) { console.error(e); }
+  try { updateFx(dt); } catch (e) { console.error(e); P.length = 0; A.length = 0; }
   hudT += dt; if (hudT > 50) { hudT = 0; updateHUD(); }
-  render();
-  requestAnimationFrame(frame);
+  try { render(); } catch (e) { console.error(e); }
 }
 Hap.init();
 refreshMenu();
