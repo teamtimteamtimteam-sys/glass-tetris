@@ -428,9 +428,9 @@ SHAPES.k = [0, 1, 2, 3].map(r => r % 2 === 0 ? [[2, 1], [1, 1], [0, 1], [0, 0]] 
 SHAPES.j = [0, 1, 2, 3].map(() => [[0, 1], [1, 1], [2, 1], [0, 0], [1, 0], [2, 0]]);
 // jr：钻头块钻完以后，钻头脱落消失，只剩上面 3 格红色钻机接着往下落
 SHAPES.jr = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [2, 0]]);
-// p 压缩块：上面 3 格横梁、正中下方 1 格液压锤头（第 0 格，特殊格），不能转。落地时锤头正下方如果连着至少 3 格实心，就把最上面那格压没，整块再往下降一格
+// p 压缩块：上面 3 格横梁、正中下方 1 格液压锤头（第 0 格，特殊格），不能转。落地时锤头正下方如果连着至少 3 格实心，就把最上面那格压没、整块降一格，连着压，最多 3 下
 SHAPES.p = [0, 1, 2, 3].map(() => [[1, 1], [0, 0], [1, 0], [2, 0]]);
-// q 平衡块：竖着两格（上面一格是天平，第 0 格），不能转。落地后比较它左右相邻两列的高度，差 3 格以上：把高的那列最上面一格搬到矮的那列顶上
+// q 平衡块：竖着两格（上面一格是天平，第 0 格），不能转。落地后比较它左右相邻两列的高度，差 2 格以上：把高的那列顶上的方块一格一格搬到矮的那列，直到两列一样高
 SHAPES.q = [0, 1, 2, 3].map(() => [[0, 0], [0, 1]]);
 // l 一线生机：2×2 的大红心，不能转。落地时如果最高的堆积离顶部不超过 5 行，就把最上面的 5 行全部清掉；否则就是一块普通的 2×2
 SHAPES.l = [0, 1, 2, 3].map(() => [[0, 0], [1, 0], [0, 1], [1, 1]]);
@@ -1720,19 +1720,37 @@ function drillDig(){
   return true;
 }
 // —— 2026-10-26 四种新特殊块：都先算出「会发生什么」（plan），下落预告和真正落地共用同一套算法 ——
-// 压缩：锤头正下方连着至少 3 格实心 → 返回要压没的那一格（最上面那格）
+// 压缩：锤头正下方连着至少 3 格实心 → 返回要压没的那一格（最上面那格）。落地时一下一下地压：每压一下整块降一格，最多连压 3 下
+const PRESS_MAX = 3;
+// 预告用：按落点把连压的过程整个模拟一遍，返回会被压没的所有格子
+function pressSeq(bd, cells){
+  const b = bd.map(row => row.slice()), hits = []; let cs = cells;
+  while (hits.length < PRESS_MAX) {
+    const hit = pressPlan(b, cs); if (!hit) break;
+    b[hit[1]][hit[0]] = null; hits.push(hit);
+    const next = cs.map(([x, y]) => [x, y + 1]);
+    if (next.some(([x, y]) => y >= TROWS || (y >= 0 && b[y][x]))) break;
+    cs = next;
+  }
+  return hits;
+}
 function pressPlan(bd, cells){
   const [hx, hy] = cells[0]; if (hy < 0) return null;
   let n = 0; for (let y = hy + 1; y < TROWS && bd[y][hx]; y++) n++;
   return n >= 3 ? [hx, hy + 1, bd[hy + 1][hx]] : null;
 }
-// 平衡：左右相邻两列高度差 ≥ 3 → 高的那列最顶上一格搬到矮的那列顶上
+// 平衡：左右相邻两列高度差 ≥ 2 → 一格一格把高的那列最顶上的方块搬到矮的那列顶上，直到两列一样高（差不超过 1）
+// 返回每一步的搬运（按顺序），不改动传进来的棋盘
 function balancePlan(bd, cells){
-  const x0 = cells[0][0], L = x0 - 1, R = x0 + 1; if (L < 0 || R >= COLS) return null;
-  const top = x => { for (let y = 0; y < TROWS; y++) if (bd[y][x]) return y; return TROWS; };
-  const tL = top(L), tR = top(R); if (Math.abs(tL - tR) < 3) return null;
-  const hi = tL < tR ? L : R, lo = hi === L ? R : L, fromY = Math.min(tL, tR), toY = Math.max(tL, tR) - 1;
-  return { from: [hi, fromY], to: [lo, toY], k: bd[fromY][hi] };
+  const x0 = cells[0][0], L = x0 - 1, R = x0 + 1; if (L < 0 || R >= COLS) return [];
+  const b = bd.map(row => row.slice()), moves = [];
+  const top = x => { for (let y = 0; y < TROWS; y++) if (b[y][x]) return y; return TROWS; };
+  for (let guard = 0; guard < TROWS; guard++) {
+    const tL = top(L), tR = top(R); if (Math.abs(tL - tR) < 2) break;
+    const hi = tL < tR ? L : R, lo = hi === L ? R : L, fromY = Math.min(tL, tR), toY = Math.max(tL, tR) - 1, k = b[fromY][hi];
+    b[fromY][hi] = null; b[toY][lo] = k; moves.push({ from: [hi, fromY], to: [lo, toY], k });
+  }
+  return moves;
 }
 // 侧翼：特殊格左右只有一边是空的 → 这一行那一边所有的空位
 function flankPlan(bd, cells){
@@ -1752,10 +1770,12 @@ function lifelinePlan(bd){
 }
 function lock(){
   if (cur.t === 'j' && !cur.drilled && drillDig()) return;
-  if (cur.t === 'p' && !cur.pressed) { // 压缩：先把锤头底下那格压没，整块再降一格，然后照常锁定
-    cur.pressed = true;
+  if (cur.t === 'p' && (cur.presses || 0) < PRESS_MAX) { // 压缩：压没锤头底下那格，整块降一格，稍停一下再压下一次；压不动了才锁定
     const hit = pressPlan(board, SHAPES.p[cur.r].map(([cx, cy]) => [cur.x + cx, cur.y + cy]));
-    if (hit) { board[hit[1]][hit[0]] = null; score += 10 * level; fxPress(hit); Sfx.press(); if (canMove(0, 1)) cur.y++; }
+    if (hit) {
+      board[hit[1]][hit[0]] = null; cur.presses = (cur.presses || 0) + 1; score += 20 * level * cur.presses; fxPress(hit, cur.presses); Sfx.press();
+      if (canMove(0, 1)) { cur.y++; lockTimer = LOCK_DELAY - 170; lockResets = 0; dropAcc = 0; return; } // 等约 0.17 秒再压下一次
+    } else cur.presses = PRESS_MAX;
   }
   if (cur.t === 'f' && !cur.landing) { floatPark(); return; }
   const landing = !!cur.landing;
@@ -1774,7 +1794,7 @@ function lock(){
   cs.forEach(([x, y], i) => { if (y >= 0) board[y][x] = cellKey(pieceT, i, pieceR); if (y >= HID) above = false; });
   fxLockFlash(cs);
   if (pieceT === 'Q') fxHeavyLand(cs);
-  if (pieceT === 'q') { const res = balancePlan(board, cs); if (res) { board[res.from[1]][res.from[0]] = null; board[res.to[1]][res.to[0]] = res.k; fxBalance(res); Sfx.balance(); } }
+  if (pieceT === 'q') { const moves = balancePlan(board, cs); moves.forEach((m, i) => { board[m.from[1]][m.from[0]] = null; board[m.to[1]][m.to[0]] = m.k; fxBalance(m, i * 150); setTimeout(() => Sfx.balance(), i * 150); }); if (moves.length) { score += moves.length * 10 * level; banner('#banner', [['BALANCE!', 't-clear'], ['×' + moves.length, 't-combo']], .6); } }
   if (pieceT === 'e') { const fill = flankPlan(board, cs); if (fill.length) { for (const [x, y] of fill) board[y][x] = 'eW'; fxFlank(cs[0], fill); Sfx.flank(); } }
   if (pieceT === 'l') { // 一线生机：危急时清掉最上面 5 行（钢格也清），这块自己多半也在里面
     const rows = lifelinePlan(board);
@@ -2049,8 +2069,8 @@ function render(){
           const rows = lifelinePlan(bd);
           if (rows) { ctx.fillStyle = on ? 'rgba(255,90,120,.22)' : 'rgba(255,90,120,.1)'; for (const y of rows) if (y >= HID) ctx.fillRect(0, (y - HID) * CD, COLS * CD, CD); }
         } else if (gm !== 'off') {
-          if (cur.t === 'p') { const hit = pressPlan(bd, gcs); if (hit && hit[1] >= HID) { const X = hit[0] * CD, Y = (hit[1] - HID) * CD; ctx.fillStyle = on ? '#ff5a4a' : '#ffd04a'; for (let i = 2; i < 8; i++) { ctx.fillRect(X + i * u, Y + i * u, u, u); ctx.fillRect(X + (9 - i) * u, Y + i * u, u, u); } } } // 会被压没的那格画一个 ×
-          if (cur.t === 'q') { const res = balancePlan(bd, gcs); if (res) { box(res.from[0], res.from[1], '#ffd0ec'); box(res.to[0], res.to[1], on ? '#c25a9c' : '#ffd0ec'); } }
+          if (cur.t === 'p') for (const hit of pressSeq(board, gcs)) if (hit[1] >= HID) { const X = hit[0] * CD, Y = (hit[1] - HID) * CD; ctx.fillStyle = on ? '#ff5a4a' : '#ffd04a'; for (let i = 2; i < 8; i++) { ctx.fillRect(X + i * u, Y + i * u, u, u); ctx.fillRect(X + (9 - i) * u, Y + i * u, u, u); } } // 会被压没的每一格画一个 ×
+          if (cur.t === 'q') for (const m of balancePlan(bd, gcs)) { box(m.from[0], m.from[1], '#ffd0ec'); box(m.to[0], m.to[1], on ? '#c25a9c' : '#ffd0ec'); }
           if (cur.t === 'e') for (const [x, y] of flankPlan(bd, gcs)) box(x, y, on ? '#8fd8ff' : '#ffffff');
         }
       }
@@ -2621,7 +2641,7 @@ function fxDrillDig(bits, hit){
   banner('#banner', [['DRILL!', 't-tetris'], ['-' + hit.length + ' BLOCKS', 't-combo']], .6);
 }
 // 压缩：被压的那格从上往下扁成一条线、两边喷出碎屑，再一道冲击波
-function fxPress([x, y, k]){
+function fxPress([x, y, k], n = 1){
   if (y < HID) return;
   const r = bRect(), c = CELL, u = px(c), X = r.left + x * c, Y = r.top + (y - HID) * c;
   anim(220, (kk, g) => {
@@ -2630,21 +2650,22 @@ function fxPress([x, y, k]){
     g.globalAlpha = 1 - kk; g.fillStyle = '#fff'; g.fillRect(X - kk * c, Y + c - u, c * (1 + 2 * kk), u); g.globalAlpha = 1;
   });
   for (let i = 0; i < 16; i++) { const side = i % 2 ? 1 : -1; addP({ x: X + c / 2 + side * c / 2, y: Y + c - rand(0, c * .4), vx: side * rand(120, 360), vy: rand(-180, -20), g: 900, max: rand(220, 420), s: u * (i % 4 ? 1 : 2), c: i % 3 ? (COLORS[k] || '#fff') : '#e0a020' }); }
-  shake(6, 200);
-  banner('#banner', [['CRUSH!', 't-clear']], .45);
+  shake(4 + n * 3, 200);
+  banner('#banner', [[n > 1 ? 'CRUSH ×' + n + '!' : 'CRUSH!', n > 2 ? 't-tetris' : 't-clear']], .45);
 }
 // 平衡：一格从高的那列沿弧线飞到矮的那列顶上，落点闪一下
-function fxBalance(res){
+function fxBalance(res, delay = 0){
   const r = bRect(), c = CELL, u = px(c), [fx, fy] = res.from, [tx, ty] = res.to;
   const X0 = r.left + fx * c, Y0 = r.top + (fy - HID) * c, X1 = r.left + tx * c, Y1 = r.top + (ty - HID) * c;
-  anim(360, (k, g) => {
-    const e = k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k), X = X0 + (X1 - X0) * e, Y = Y0 + (Y1 - Y0) * e - Math.sin(k * Math.PI) * c * 2.2;
+  anim(360 + delay, (kk, g) => {
+    const t = kk * (360 + delay) - delay;
+    if (t < 0) { if (ty >= HID) { g.fillStyle = '#070910'; g.fillRect(X1, Y1, c, c); } if (fy >= HID) g.drawImage(blockCache[res.k], X0, Y0, c, c); return; } // 还没轮到它：照原样待在原处
+    const k = t / 360, e = k < .5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k), X = X0 + (X1 - X0) * e, Y = Y0 + (Y1 - Y0) * e - Math.sin(k * Math.PI) * c * 2.2;
     if (ty >= HID) { g.fillStyle = '#070910'; g.fillRect(X1, Y1, c, c); }
     g.globalAlpha = .4; g.fillStyle = '#c25a9c'; g.fillRect(X + c / 2 - u, Y + c, 2 * u, u * 2); g.globalAlpha = 1;
     g.drawImage(blockCache[res.k], X, Y, c, c);
   });
-  if (ty >= HID) for (let i = 0; i < 10; i++) addP({ x: X1 + c / 2, y: Y1 + c / 2, vx: rand(-150, 150), vy: rand(-180, 40), max: rand(200, 340), s: u, c: i % 2 ? '#ffd0ec' : '#fff', delay: 360 });
-  banner('#banner', [['BALANCE!', 't-clear']], .5);
+  if (ty >= HID) for (let i = 0; i < 10; i++) addP({ x: X1 + c / 2, y: Y1 + c / 2, vx: rand(-150, 150), vy: rand(-180, 40), max: rand(200, 340), s: u, c: i % 2 ? '#ffd0ec' : '#fff', delay: 360 + delay });
 }
 // 侧翼：翅膀往一边一扫，补上的格子从近到远依次「长」出来，沿路飘羽毛
 function fxFlank([sx, sy], fill){
